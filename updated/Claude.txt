@@ -1,0 +1,15 @@
+Bug: The clustering is over-merging unrelated stories — this is the real one. Look at story #1: it merges an OpenAI-Apple lawsuit/partnership story with an unrelated Hugging Face post about Stable Diffusion on Apple Silicon — the only thing they share is the word "Apple." Story #8 crams 8 different articles together because they all use generic AI-safety vocabulary. That's why every summary reads like "sources differ, details unclear, framing varies" — the model isn't being unclear, it's being handed genuinely unrelated articles and asked to pretend they're one story.
+
+The root cause: my clustering only compared each article to one "anchor" article, and used raw word overlap where words like "OpenAI," "model," and "AI" appear in nearly everything from that source — so they inflate similarity between stories that have nothing to do with each other.
+
+
+What changed and why:
+
+Clustering rewritten entirely — the TF-IDF approach was fundamentally the wrong tool (tested and confirmed: related stories with different wording scored worse similarity than unrelated ones with shared boilerplate). dedup.py now sends the day's headlines to Claude in one call and asks it to group by actual topic — this is what fixes the incoherent "sources differ" hedging you saw, since clusters will now actually be one story.
+Headlines are now synthesized, not copy-pasted from whichever article happened to be first in the cluster.
+Anthropic feed URL fixed — the original one doesn't exist (Anthropic has no official RSS), swapped for a working community mirror, and ingest.py now prints per-source counts every run so a silently-dead feed shows up immediately instead of quietly disappearing.
+scikit-learn dropped as a dependency — no longer needed.
+
+Before you re-run: delete your old digest.db (schema changed slightly — added a headline column) so it rebuilds clean: rm digest.db.
+
+Run it again and send me the next output — I'd expect the clustering to look dramatically different this time. If any story still looks wrongly merged or split, that's useful signal for tuning the prompt further.

@@ -1,0 +1,134 @@
+=== AI Digest pipeline starting ===
+
+[1/6] Ingesting feeds...
+  [warn] could not parse VentureBeat AI (https://venturebeat.com/ai/feed/)
+  [warn] could not parse Google AI Blog (https://ai.googleblog.com/feeds/posts/default/-/AI?alt=rss)
+  [warn] could not parse Generalist Research (https://generalist.com/feed)
+Per-source new article counts (new, old):
+  OpenAI: 5 | 1110 old articles filtered
+  Google DeepMind: 1 | 99 old articles filtered
+  Hugging Face: 2 | 833 old articles filtered
+  Anthropic: 2 | 18 old articles filtered
+  Cohere: 0 | 100 old articles filtered
+  Groq: 10
+  Stability AI: 0
+  Cursor: 0 | 3 old articles filtered
+  Papers with Code: 0
+  Semantic Scholar: 0
+  LangChain: 10
+  LlamaIndex: 10
+  vLLM: 10
+  Ollama: 10
+  LiteLLM: 10
+  Open WebUI: 10
+  ComfyUI: 10
+  Mistral Inference: 7
+  TechCrunch AI: 20
+  The Verge AI: 10
+  Ars Technica AI: 1 | 19 old articles filtered
+  MIT Technology Review AI: 0 | 10 old articles filtered
+  VentureBeat AI: 0
+  MarkTechPost: 10
+  Hacker News AI: 19
+  Google AI Blog: 0
+  Microsoft AI Blog: 0 | 10 old articles filtered
+  AWS ML Blog: 14 | 6 old articles filtered
+  NVIDIA Developer: 100
+  Meta Research: 0 | 10 old articles filtered
+  Towards Data Science: 12 | 8 old articles filtered
+  Generalist Research: 0
+  AI Trends: 0 | 10 old articles filtered
+Ingest done: 283 new articles, 2236 old articles filtered, 3 feed errors.
+
+[2/6] Cleaning up old articles...
+Cleanup: removed 178 old articles (older than 72h or before 2026-07-01)
+
+[3/6] Clustering articles...
+Clustering articles from: 2026-08-05T05:58:33.275897+00:00
+Current UTC time: 2026-08-08T05:58:33.275908+00:00
+Found 105 unclustered articles within lookback window.
+Article published dates range: 2026-08-05 to Wed, 05 Au
+  [error] clustering call failed, falling back to no grouping: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CdpmYXyB9LRxB9wMQEkjh'}
+Cluster done: 105 articles grouped into 105 clusters.
+
+[4/6] Summarizing clusters...
+Summarize: processing 50 new clusters since 2000-01-01...
+  [info] cluster 3: fallback model llama-3.1-8b-instant
+  [info] cluster 4: fallback model llama-3.1-8b-instant
+  [info] cluster 5: fallback model llama-3.1-8b-instant
+  [info] cluster 6: fallback model llama-3.1-8b-instant
+  [info] cluster 8: fallback model llama-3.1-8b-instant
+  [info] cluster 9: fallback model llama-3.1-8b-instant
+  [info] cluster 10: fallback model llama-3.1-8b-instant
+  [10/50] 9 done, 1 failed
+  [info] cluster 11: fallback model llama-3.1-8b-instant
+  [info] cluster 12: fallback model llama-3.1-8b-instant
+  [info] cluster 13: fallback model llama-3.1-8b-instant
+  [info] cluster 14: fallback model llama-3.1-8b-instant
+  [info] cluster 15: fallback model llama-3.1-8b-instant
+  [info] cluster 16: fallback model llama-3.1-8b-instant
+  [info] cluster 17: fallback model llama-3.1-8b-instant
+  [info] cluster 18: fallback model llama-3.1-8b-instant
+  [info] cluster 19: fallback model llama-3.1-8b-instant
+  [info] cluster 20: fallback model llama-3.1-8b-instant
+  [20/50] 19 done, 1 failed
+  [info] cluster 21: fallback model llama-3.1-8b-instant
+  [info] cluster 22: fallback model llama-3.1-8b-instant
+  [info] cluster 23: fallback model llama-3.1-8b-instant
+  [info] cluster 24: fallback model llama-3.1-8b-instant
+  [info] cluster 25: fallback model llama-3.1-8b-instant
+  [info] cluster 26: fallback model llama-3.1-8b-instant
+  [info] cluster 27: fallback model llama-3.1-8b-instant
+  [info] cluster 28: fallback model llama-3.1-8b-instant
+  [info] cluster 29: fallback model llama-3.1-8b-instant
+  [info] cluster 30: fallback model llama-3.1-8b-instant
+  [30/50] 29 done, 1 failed
+  [info] cluster 31: fallback model llama-3.1-8b-instant
+  [info] cluster 32: fallback model llama-3.1-8b-instant
+  [info] cluster 33: fallback model llama-3.1-8b-instant
+  [info] cluster 34: fallback model llama-3.1-8b-instant
+  [info] cluster 35: fallback model llama-3.1-8b-instant
+  [info] cluster 36: fallback model llama-3.1-8b-instant
+  [info] cluster 37: fallback model llama-3.1-8b-instant
+  [info] cluster 38: fallback model llama-3.1-8b-instant
+  [info] cluster 39: fallback model llama-3.1-8b-instant
+  [info] cluster 40: fallback model llama-3.1-8b-instant
+  [40/50] 39 done, 1 failed
+  [info] cluster 41: fallback model llama-3.1-8b-instant
+  [info] cluster 42: fallback model llama-3.1-8b-instant
+  [info] cluster 43: fallback model llama-3.1-8b-instant
+  [info] cluster 44: fallback model llama-3.1-8b-instant
+  [info] cluster 45: fallback model llama-3.1-8b-instant
+  [info] cluster 46: fallback model llama-3.1-8b-instant
+  [info] cluster 47: fallback model llama-3.1-8b-instant
+  [info] cluster 48: fallback model llama-3.1-8b-instant
+  [info] cluster 49: fallback model llama-3.1-8b-instant
+  [info] cluster 50: fallback model llama-3.1-8b-instant
+  [50/50] 49 done, 1 failed
+Summarize done: 49/50 clusters. Failed: 1. (Using GROQ)
+
+[5/6] Building digest...
+Digest: generated 7 sections with 13 stories
+
+[5.5/6] Running QA validation...
+
+======================================================================
+🤖 QA TESTER AGENT - Running Quality Assurance
+======================================================================
+
+📋 Reviewing 49 articles across all clusters...
+
+❌ QA Agent failed: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CdpmpCHwnQGBseffX1yGU'}
+
+======================================================================
+❌ QA VALIDATION FAILED
+======================================================================
+
+🔧 QA Agent attempting to auto-fix 1 critical issues...
+✅ Auto-fix completed. Rerun digest generation.
+
+⚠️  Some issues were auto-fixed. Please regenerate digest:
+   python -c 'from digest import build_digest_html; build_digest_html()'
+
+❌ QA validation failed. Digest NOT sent.
+Review issues above and run again after fixes.

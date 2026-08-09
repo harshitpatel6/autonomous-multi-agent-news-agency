@@ -1,0 +1,104 @@
+"""
+Enhanced Fact-Checker Agent (Task 2.5): heuristic validation of clusters with a
+0.0-1.0 confidence score, flagging inconsistencies before a story reaches QA/Editor.
+"""
+from datetime import datetime, timezone
+from typing import Dict, List
+from urllib.parse import urlparse
+
+from config import ABSOLUTE_CUTOFF_DATE, LOOKBACK_HOURS
+from agents.base_agent import Agent
+from agents.message_router import register_agent
+
+# Sources considered higher-reputation for corroboration weighting.
+REPUTABLE_SOURCES = {
+    "OpenAI", "Google DeepMind", "Anthropic", "Hugging Face", "TechCrunch AI",
+    "The Verge AI", "Ars Technica AI", "MIT Technology Review AI", "VentureBeat AI",
+    "Microsoft AI Blog", "AWS ML Blog", "NVIDIA Developer",
+}
+
+
+class FactCheckerAgent(Agent):
+    def __init__(self):
+        super().__init__("FactCheckerAgent")
+
+    def validate_cluster(self, cluster: Dict, articles: List[Dict]) -> Dict:
+        """
+        Heuristic validation returning a confidence score (0.0-1.0) plus flags/recommendation.
+        Checks: date consistency, source reputation, multi-source corroboration, URL sanity.
+        """
+        flags: List[str] = []
+        score = 1.0
+
+        if not articles:
+            return {"confidence": 0.0, "flags": ["no articles in cluster"], "recommendation": "reject"}
+
+        # 1. Date consistency: all dates present, plausible, and clustered close together
+        dates = [a.get("published_at") for a in articles if a.get("published_at")]
+        if len(dates) < len(articles):
+            missing = len(articles) - len(dates)
+            flags.append(f"{missing} article(s) missing published_at")
+            score -= 0.15 * missing / len(articles)
+
+        for d in dates:
+            if d < ABSOLUTE_CUTOFF_DATE:
+                flags.append(f"article predates ABSOLUTE_CUTOFF_DATE: {d}")
+                score -= 0.3
+
+        if len(dates) >= 2:
+            try:
+                parsed = sorted(datetime.fromisoformat(d.replace("Z", "+00:00")) for d in dates)
+                spread_days = (parsed[-1] - parsed[0]).days
+                if spread_days > 14:
+                    flags.append(f"source dates span {spread_days} days — may not be the same story")
+                    score -= 0.2
+            except Exception:
+                flags.append("could not parse one or more dates")
+                score -= 0.1
+
+        # 2. Source reputation
+        sources = {a.get("source") for a in articles}
+        reputable_count = len(sources & REPUTABLE_SOURCES)
+        if reputable_count == 0:
+            flags.append("no reputable/primary source corroborates this story")
+            score -= 0.15
+
+        # 3. Multi-source corroboration
+        if len(sources) == 1:
+            flags.append("single-source story (no corroboration)")
+            score -= 0.1
+        else:
+            score += min(0.1, 0.03 * (len(sources) - 1))  # small bonus, capped
+
+        # 4. URL sanity
+        for a in articles:
+            url = a.get("url", "")
+            parsed_url = urlparse(url)
+            if not parsed_url.scheme or not parsed_url.netloc:
+                flags.append(f"malformed URL: {url[:60]}")
+                score -= 0.1
+
+        # 5. Cluster completeness
+        if not cluster.get("headline") or not cluster.get("summary"):
+            flags.append("cluster missing headline or summary")
+            score -= 0.2
+
+        score = round(max(0.0, min(1.0, score)), 2)
+        recommendation = "publish" if score >= 0.6 else ("review" if score >= 0.35 else "reject")
+
+        result = {"confidence": score, "flags": flags, "recommendation": recommendation}
+        self.logger.log_action(
+            "validate_cluster", input_data={"cluster_id": cluster.get("id")},
+            output_data=result, success=True,
+        )
+        return result
+
+    def handle_message(self, message: Dict) -> Dict:
+        payload = message.get("payload", {})
+        if message["type"] == "validate_cluster":
+            return self.validate_cluster(payload["cluster"], payload.get("articles", []))
+        return {"error": f"unknown message type {message['type']}"}
+
+
+fact_checker_agent = FactCheckerAgent()
+register_agent("fact_checker", fact_checker_agent.handle_message)

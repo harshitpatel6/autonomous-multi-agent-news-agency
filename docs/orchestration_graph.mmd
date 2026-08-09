@@ -1,0 +1,25 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	load_clusters(load_clusters)
+	fact_check(fact_check)
+	editor_select(editor_select)
+	qa_validate(qa_validate)
+	fetch_backup(fetch_backup)
+	finalize(finalize)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> load_clusters;
+	editor_select --> qa_validate;
+	fact_check --> editor_select;
+	fetch_backup --> qa_validate;
+	load_clusters --> fact_check;
+	qa_validate -. &nbsp;backup&nbsp; .-> fetch_backup;
+	qa_validate -.-> finalize;
+	finalize --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc

@@ -1,0 +1,134 @@
+"""
+Stage 2: Dedup / Cluster.
+
+v1 used TF-IDF word-overlap clustering. Tested against real output, it failed
+in both directions: it merged unrelated stories that happened to share
+boilerplate vocabulary (e.g. two OpenAI stories, or two "AI safety" stories),
+and it FAILED to merge genuinely related stories that used different wording
+(e.g. "OpenAI-Apple partnership announced" vs "OpenAI responds to Apple
+lawsuit" - same story, near-zero word overlap). That's a ceiling on what
+word-matching can do, not a threshold-tuning problem.
+
+v2 has Claude do the grouping directly. It's one extra call per run (cheap -
+this runs once per digest, not per article or per subscriber), and it
+understands semantic/topical relationships that word overlap can't.
+"""
+import json
+from datetime import datetime, timedelta, timezone
+import anthropic
+
+from config import LOOKBACK_HOURS, ANTHROPIC_API_KEY, CLAUDE_MODEL
+from db import get_connection
+
+client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+CLUSTER_PROMPT = """Below is a numbered list of article headlines and snippets from \
+the last {hours} hours of AI news. Group them into stories: articles that cover the \
+SAME underlying event, announcement, or development go in the same group. Articles on \
+different topics - even from the same company, even using similar generic AI \
+vocabulary - must stay in separate groups. When in doubt, keep them separate; false \
+splits are far less costly than false merges.
+
+Articles:
+{articles_block}
+
+Respond ONLY with valid JSON, no other text, in this exact format:
+{{"groups": [[0, 3], [1], [2, 5, 7]]}}
+
+Every article index (0 to {max_idx}) must appear in exactly one group.
+"""
+
+# Keep prompt size sane - if you're pulling from many high-volume feeds,
+# raise this only after checking your typical daily article count.
+MAX_ARTICLES_PER_CLUSTER_CALL = 150
+
+
+def build_articles_block(rows):
+    lines = []
+    for i, r in enumerate(rows):
+        snippet = (r["summary_raw"] or "")[:200].replace("\n", " ")
+        lines.append(f'{i}. [{r["source"]}] {r["title"]} — {snippet}')
+    return "\n".join(lines)
+
+
+def cluster_articles():
+    conn = get_connection()
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=LOOKBACK_HOURS)).isoformat()
+
+    rows = conn.execute(
+        """SELECT id, source, title, summary_raw FROM articles
+           WHERE cluster_id IS NULL AND fetched_at >= ?""",
+        (cutoff,),
+    ).fetchall()
+
+    if not rows:
+        print("Cluster: no new articles to cluster.")
+        conn.close()
+        return 0
+
+    if len(rows) > MAX_ARTICLES_PER_CLUSTER_CALL:
+        print(f"  [warn] {len(rows)} articles is a lot for one grouping call - "
+              f"truncating to first {MAX_ARTICLES_PER_CLUSTER_CALL}. Consider running "
+              f"more often or raising MAX_ARTICLES_PER_CLUSTER_CALL.")
+        rows = rows[:MAX_ARTICLES_PER_CLUSTER_CALL]
+
+    ids = [r["id"] for r in rows]
+    n = len(ids)
+
+    if n == 1:
+        groups = [[0]]
+    else:
+        prompt = CLUSTER_PROMPT.format(
+            hours=LOOKBACK_HOURS,
+            articles_block=build_articles_block(rows),
+            max_idx=n - 1,
+        )
+        try:
+            response = client.messages.create(
+                model=CLAUDE_MODEL,
+                max_tokens=2000,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = response.content[0].text.strip()
+            text = text.replace("```json", "").replace("```", "").strip()
+            parsed = json.loads(text)
+            groups = parsed["groups"]
+
+            # Safety net: make sure every index appears exactly once. If the
+            # model missed any, give each a singleton group rather than
+            # silently dropping articles from the digest.
+            seen = set()
+            for g in groups:
+                seen.update(g)
+            missing = set(range(n)) - seen
+            for m in missing:
+                groups.append([m])
+
+        except Exception as e:
+            print(f"  [error] clustering call failed, falling back to no grouping: {e}")
+            groups = [[i] for i in range(n)]
+
+    cluster_count = 0
+    for group_indices in groups:
+        cur = conn.execute(
+            "INSERT INTO clusters (created_at) VALUES (?)",
+            (datetime.now(timezone.utc).isoformat(),),
+        )
+        cluster_id = cur.lastrowid
+        article_ids = [ids[k] for k in group_indices if 0 <= k < n]
+        if not article_ids:
+            continue
+        conn.executemany(
+            "UPDATE articles SET cluster_id = ? WHERE id = ?",
+            [(cluster_id, aid) for aid in article_ids],
+        )
+        cluster_count += 1
+
+    conn.commit()
+    conn.close()
+    print(f"Cluster done: {n} articles grouped into {cluster_count} clusters.")
+    return cluster_count
+
+
+if __name__ == "__main__":
+    cluster_articles()

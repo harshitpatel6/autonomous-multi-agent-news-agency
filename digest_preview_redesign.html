@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: #1a1a1a;
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 0;
+      background-color: #f4f5f7;
+    }
+    .wrap {
+      background-color: #ffffff;
+    }
+    .header {
+      background: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
+      padding: 36px 28px 28px;
+      color: #ffffff;
+    }
+    .header .eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      opacity: 0.85;
+      margin: 0 0 10px 0;
+    }
+    .header h1 {
+      font-size: 30px;
+      font-weight: 800;
+      margin: 0 0 10px 0;
+      letter-spacing: -0.5px;
+      color: #ffffff;
+    }
+    .header .date {
+      font-size: 14px;
+      opacity: 0.9;
+      font-weight: 500;
+    }
+    .agent-badge {
+      display: inline-block;
+      font-size: 11px;
+      color: #ffffff;
+      margin-top: 12px;
+      background: rgba(255,255,255,0.18);
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+    .hero {
+      margin: 0;
+      padding: 24px 28px;
+      background: #fafaff;
+      border-bottom: 1px solid #eceefb;
+    }
+    .hero-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #6d28d9;
+      margin: 0 0 10px 0;
+    }
+    .hero-headline {
+      font-size: 23px;
+      font-weight: 800;
+      margin: 0 0 10px 0;
+      line-height: 1.3;
+      color: #111;
+    }
+    .hero-summary {
+      font-size: 15.5px;
+      line-height: 1.75;
+      color: #333;
+      margin: 0 0 10px 0;
+    }
+    .content {
+      padding: 8px 28px 4px;
+    }
+    .section {
+      margin-bottom: 34px;
+    }
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #4338ca;
+      margin: 0 0 16px 0;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #ede9fe;
+    }
+    .story {
+      margin-bottom: 24px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .story:last-child {
+      border-bottom: none;
+    }
+    .story-headline {
+      font-size: 18.5px;
+      font-weight: 700;
+      margin: 0 0 10px 0;
+      line-height: 1.35;
+      color: #111;
+    }
+    .impact-badge {
+      display: inline-block;
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #b45309;
+      background: #fef3c7;
+      padding: 2px 8px;
+      border-radius: 999px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    .story-summary {
+      font-size: 15px;
+      line-height: 1.7;
+      margin: 0 0 10px 0;
+      color: #333;
+    }
+    .story-meta {
+      font-size: 12.5px;
+      color: #888;
+    }
+    .story-meta a {
+      color: #4338ca;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .story-meta a:hover {
+      text-decoration: underline;
+    }
+    .footer {
+      margin-top: 12px;
+      padding: 24px 28px 32px;
+      border-top: 1px solid #eee;
+      font-size: 12px;
+      color: #999;
+      text-align: center;
+      background: #fafafa;
+    }
+    .footer .agents-row {
+      margin-top: 8px;
+      font-size: 11.5px;
+      color: #aaa;
+    }
+    @media only screen and (max-width: 600px) {
+      .header, .hero, .content, .footer {
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+      .header h1 {
+        font-size: 24px;
+      }
+      .story-headline, .hero-headline {
+        font-size: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="eyebrow">Issue #5</div>
+    <h1>AI Daily</h1>
+    <div class="date">August 08, 2026 · 3 stories from 2 sources</div>
+    <div class="agent-badge">✨ Curated by AI Agents</div>
+  </div>
+
+  <div class="hero">
+  <div class="hero-label">🔥 Top Story</div>
+  <div class="hero-headline">Prinevo Memory Boosts Agent Recall</div>
+  <p class="hero-summary">A new open research project called Prinevo Memory introduces a context graph designed to give long-running AI agents persistent, structured recall instead of relying on flat context windows. The system is domain-pluggable, meaning teams can wire it into existing agent frameworks without a rewrite. This matters for anyone building multi-session agents, since context loss is one of the biggest reliability gaps in production agent systems today. Details remain thin — the only public artifact so far is a shared writeup, not a released library — so real-world benchmarks are still pending.</p>
+  <div class="story-meta">Sources: <a href="#">Hacker News AI</a></div>
+</div>
+
+
+  <div class="content">
+  <div class="section">
+  <div class="section-title">Company News</div>
+  <div class="story">
+  <h2 class="story-headline">Meta CTO: Work More</h2>
+  <p class="story-summary">Meta CTO Andrew Bosworth told employees on an internal call that AI-driven productivity gains should translate into higher output rather than shorter hours, a stance that breaks from the four-day-week experiments at other tech firms. The comment surfaced from a recording shared internally and quickly spread on social media. It matters because Meta sets tone for how Big Tech frames AI's effect on labor, and other leadership teams often echo its public positioning within weeks. Sources differ on how literally to take the remark — some frame it as a throwaway aside, others as a signal of internal performance-review changes.</p>
+  <div class="story-meta">Sources: <a href="#">Hacker News AI</a></div>
+</div>
+
+</div>
+
+<div class="section">
+  <div class="section-title">Tools & Engineering</div>
+  <div class="story">
+  <h2 class="story-headline">Amazon Bedrock Policies Get Engineered Workflow</h2>
+  <p class="story-summary">AWS shipped open-source Agent Skills that let Bedrock users build, test, and deploy custom Automated Reasoning policies as a repeatable engineering workflow instead of a manual, one-off review process. For teams already on Bedrock, this turns policy authoring into something closer to normal CI/CD, with versioning and test coverage. The practical upside is fewer regressions when policies are updated, since changes can now be validated before deploy rather than caught in production.</p>
+  <div class="story-meta">Sources: <a href="#">AWS ML Blog</a></div>
+</div>
+
+</div>
+
+  </div>
+
+  <div class="footer">
+    Written, fact-checked, edited and QA'd end-to-end by autonomous AI agents — no human editor in the loop.
+    <div class="agents-row">Reporter → Fact-Checker → Editor → QA</div>
+  </div>
+</div>
+</body>
+</html>

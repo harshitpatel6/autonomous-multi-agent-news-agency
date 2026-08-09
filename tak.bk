@@ -1,0 +1,959 @@
+# Tasks: Autonomous AI News Agency
+
+**Spec Type:** feature  
+**Status:** draft  
+**Related:** requirements.md, design.md
+
+---
+
+## Overview
+
+This spec transforms the newsletter system into a fully autonomous AI news agency with specialized agents handling all operations. The implementation is divided into 5 phases focusing on critical fixes, multi-agent architecture, observability, testing, and future enhancements.
+
+---
+
+## Tasks
+
+### Phase 1: Fix Critical Issues (P0)
+
+#### Task 1.1: API Key Validation & Health Checks
+**Priority:** P0  
+**Estimated Time:** 1 hour  
+**Dependencies:** None
+
+**Description:**
+Add startup validation for Anthropic and Groq API keys. Detect invalid/placeholder keys and provide clear error messages.
+
+**Subtasks:**
+1. Create `utils/api_validator.py` module
+2. Implement `validate_anthropic_key()` function
+3. Implement `validate_groq_key()` function
+4. Call validators in `main.py` on startup
+5. Log validation results with clear error messages
+6. Add fallback strategy documentation
+
+**Acceptance Criteria:**
+- System detects placeholder API key ("sk_ant_YOUR_ACTUAL_KEY_HERE")
+- Makes test API calls to validate real keys
+- Prints clear error messages if keys invalid
+- Proceeds with available keys (Claude OR Groq, not both required)
+- Fails fast if NO valid keys available
+
+**Test Cases:**
+- Invalid Anthropic key + valid Groq key → Proceeds with Groq
+- Valid Anthropic key + invalid Groq key → Proceeds with Claude
+- Both invalid → Fails with clear error
+- Both valid → Proceeds with Claude as primary
+
+---
+
+#### Task 1.2: Database Schema Migration
+**Priority:** P0  
+**Estimated Time:** 1 hour  
+**Dependencies:** None
+
+**Description:**
+Add new columns to clusters table and create new tables for state management and observability.
+
+**Subtasks:**
+1. Add columns to `clusters` table:
+   - `sent_at TEXT`
+   - `digest_id TEXT`
+   - `quality_score REAL`
+   - `backup_used INTEGER DEFAULT 0`
+   - `validation_status TEXT`
+   - `fact_check_score REAL`
+
+2. Create `digests` table
+3. Create `agent_logs` table
+4. Create migration script `db_migrate.py`
+5. Update `db.py` with new schema
+6. Test migration on test database
+
+**Acceptance Criteria:**
+- Migration script runs without errors
+- All new columns added successfully
+- New tables created with proper indexes
+- Existing data preserved during migration
+- Migration is idempotent (can run multiple times safely)
+
+**Test Cases:**
+- Run migration on empty database → Success
+- Run migration on existing database with data → Success, data preserved
+- Run migration twice → No errors, no duplicate columns
+
+---
+
+#### Task 1.3: State Manager - Sent Content Tracking
+**Priority:** P0  
+**Estimated Time:** 2 hours  
+**Dependencies:** Task 1.2
+
+**Description:**
+Implement StateManager class to track sent clusters and prevent duplicates across runs.
+
+**Subtasks:**
+1. Create `agents/state_manager.py`
+2. Implement `mark_as_sent(cluster_ids, digest_id)` method
+3. Implement `filter_unsent_clusters(clusters)` method
+4. Implement `archive_old_sent(days=30)` method
+5. Implement `get_sent_stats()` for metrics
+6. Integrate into `digest.py`
+7. Add unit tests
+
+**Acceptance Criteria:**
+- Clusters marked with `sent_at` timestamp after digest sent
+- `filter_unsent_clusters()` excludes sent clusters
+- Running pipeline twice shows different stories
+- Archive function moves old sent content (included_in_digest = 2)
+
+**Test Cases:**
+- Mark clusters [1, 2, 3] as sent → `sent_at` populated
+- Filter clusters [1, 2, 3, 4, 5] where 1-3 sent → Returns [4, 5]
+- Archive sent content older than 30 days → Status changed to archived
+
+---
+
+#### Task 1.4: Enhanced Cleanup - Filter Sent Content
+**Priority:** P0  
+**Estimated Time:** 1 hour  
+**Dependencies:** Task 1.2, Task 1.3
+
+**Description:**
+Update cleanup and dedup stages to filter out already-sent clusters and articles.
+
+**Subtasks:**
+1. Modify `dedup.py` clustering query to exclude sent articles
+2. Modify `summarize.py` cleanup to exclude sent clusters
+3. Add logging for filtered sent content
+4. Test with sent content in database
+
+**Acceptance Criteria:**
+- Clustering never includes articles from sent clusters
+- Summarization skips clusters with `sent_at IS NOT NULL`
+- Logs show count of filtered sent content
+- Multiple pipeline runs show different content
+
+**Test Cases:**
+- Database has 20 clusters, 10 already sent → Clustering uses only 10 unsent
+- Run pipeline → 15 stories sent → Mark as sent
+- Run pipeline again immediately → Different 15 stories (or fewer if not enough new)
+
+---
+
+#### Task 1.5: QA Agent - Backup Story Mechanism
+**Priority:** P0  
+**Estimated Time:** 3 hours  
+**Dependencies:** None
+
+**Description:**
+Implement QA Agent's ability to request backup stories from Editor Agent when validation fails.
+
+**Subtasks:**
+1. Refactor `agents/qa_agent.py`:
+   - Return PASS/PARTIAL/FAIL verdict
+   - Include `backup_request` in PARTIAL/FAIL output
+   - List failed cluster IDs
+
+2. Create `agents/editor_agent.py`:
+   - Implement `select_stories()` method
+   - Implement `fetch_backup_stories(exclude_ids, count)` method
+   - Category balancing logic
+   - Mark backups with `backup_used = 1`
+
+3. Integrate QA ↔ Editor communication in `digest.py`
+4. Add logging for backup story flow
+5. Unit tests for QA and Editor agents
+
+**Acceptance Criteria:**
+- QA validates clusters and returns verdict
+- If PARTIAL/FAIL: QA includes backup_request with failed IDs
+- Editor fetches next-best stories excluding failed IDs
+- QA re-validates backup stories
+- Pipeline succeeds with valid + backup stories
+- Logs show "Using X backup stories"
+
+**Test Cases:**
+- 20 clusters, 3 fail QA → Editor fetches 3 backups → Final digest has 17 valid stories
+- All clusters fail QA → Editor tries backups → All backups also fail → CEO escalation
+- 0 clusters fail QA → No backup request → Normal flow
+
+---
+
+### Phase 2: Multi-Agent Architecture
+
+#### Task 2.1: Agent Message Protocol & Router
+**Priority:** P0  
+**Estimated Time:** 2 hours  
+**Dependencies:** None
+
+**Description:**
+Implement message-passing protocol for agent communication.
+
+**Subtasks:**
+1. Create `agents/message_router.py`
+2. Define message format (JSON schema)
+3. Implement `MessageRouter` class
+4. Implement `send(message)` method
+5. Implement `broadcast(message, agents)` method
+6. Create `AGENT_REGISTRY` dictionary
+7. Add message logging to agent_logs table
+
+**Acceptance Criteria:**
+- Messages follow standardized format (from_agent, to_agent, action, data)
+- Router routes messages to correct agent handlers
+- All messages logged to database
+- Supports synchronous and async patterns
+
+**Test Cases:**
+- Send message from QA to Editor → Editor receives and handles
+- Broadcast message to [QA, Editor, Fact-Checker] → All receive
+- Invalid agent name → Raises clear error
+
+---
+
+#### Task 2.2: CEO Agent "ALEX"
+**Priority:** P0  
+**Estimated Time:** 3 hours  
+**Dependencies:** Task 2.1
+
+**Description:**
+Implement CEO Agent for board communication and strategic oversight.
+
+**Subtasks:**
+1. Create `agents/ceo_agent.py`
+2. Implement `CEOAgent` class with methods:
+   - `handle_query(query_type, query, context)`
+   - `generate_status_report()`
+   - `handle_strategic_command(command)`
+   - `escalate_to_board(issue)`
+
+3. Define CEO system prompt (executive language)
+4. Implement Claude → Groq fallback
+5. Add template responses for common queries
+6. Unit tests
+
+**Acceptance Criteria:**
+- CEO responds to status queries with executive summaries
+- CEO handles strategic commands ("focus more on research")
+- CEO escalates P0 issues requiring board decision
+- Responses are board-level appropriate (no technical jargon)
+
+**Test Cases:**
+- Query "What's today's performance?" → Executive summary with key metrics
+- Command "Lower quality threshold to 6.0" → Updates config, confirms
+- P0 escalation (all stories failed) → Notifies board with options
+
+---
+
+#### Task 2.3: CEO CLI Interface
+**Priority:** P0  
+**Estimated Time:** 2 hours  
+**Dependencies:** Task 2.2
+
+**Description:**
+Create command-line interface for board member to interact with CEO Agent.
+
+**Subtasks:**
+1. Create `ceo_cli.py` script
+2. Implement commands:
+   - `status` - Get status report
+   - `status --detailed` - Detailed metrics
+   - `ask "<question>"` - Ask CEO a question
+   - `command "<command>"` - Execute strategic command
+
+3. Add argument parsing (argparse)
+4. Format output for readability
+5. Add error handling
+
+**Acceptance Criteria:**
+- CLI provides intuitive interface to CEO Agent
+- Commands execute and display results clearly
+- Errors shown with helpful messages
+- Help text available (`python ceo_cli.py --help`)
+
+**Test Cases:**
+- `python ceo_cli.py status` → Shows today's digest stats
+- `python ceo_cli.py ask "Top stories today?"` → Lists top stories
+- Invalid command → Shows error and help text
+
+---
+
+#### Task 2.4: Reporter Agents (Beat-Based)
+**Priority:** P0  
+**Estimated Time:** 3 hours  
+**Dependencies:** Task 2.1
+
+**Description:**
+Implement specialized Reporter Agents for different beats (Company News, Research, Tools).
+
+**Subtasks:**
+1. Create `agents/reporter_agent.py`
+2. Implement `ReporterAgent` base class
+3. Create beat-specific instances:
+   - `CompanyNewsReporter` (OpenAI, Anthropic, Google, etc.)
+   - `ResearchReporter` (papers, models, benchmarks)
+   - `ToolsReporter` (frameworks, libraries, deployment tools)
+
+4. Implement `summarize_cluster(cluster, articles)` method
+5. Beat-specific prompts for each reporter
+6. Integrate into `summarize.py` (parallel processing)
+7. Unit tests per reporter
+
+**Acceptance Criteria:**
+- Each reporter specializes in their beat
+- Summaries reflect beat-specific focus
+- Parallel processing speeds up summarization
+- Falls back to generic reporter if beat unclear
+
+**Test Cases:**
+- Cluster about "OpenAI GPT-5" → CompanyNewsReporter handles
+- Cluster about "New Transformer architecture" → ResearchReporter handles
+- Cluster about "LangChain update" → ToolsReporter handles
+
+---
+
+#### Task 2.5: Enhanced Fact-Checker Agent
+**Priority:** P1  
+**Estimated Time:** 2 hours  
+**Dependencies:** Task 2.1
+
+**Description:**
+Enhance Fact-Checker Agent with better validation logic.
+
+**Subtasks:**
+1. Create/refactor `agents/fact_checker_agent.py`
+2. Implement heuristic-based checks (MVP):
+   - Date consistency across sources
+   - Source reputation scoring
+   - Multiple source corroboration
+
+3. Implement `validate_cluster(cluster, articles)` method
+4. Return confidence score (0.0 - 1.0)
+5. Flag inconsistencies
+6. Unit tests
+
+**Acceptance Criteria:**
+- Fact-checker validates each cluster
+- Assigns confidence score based on source count, date consistency
+- Flags suspicious patterns (single source, date mismatches)
+- Recommendations: approve/flag/reject
+
+**Test Cases:**
+- Cluster with 3 sources, same date → confidence 0.9, approve
+- Cluster with 1 source, unknown → confidence 0.5, flag
+- Cluster with conflicting dates → confidence 0.3, reject
+
+---
+
+#### Task 2.6: Refactor Agent Coordinator
+**Priority:** P0  
+**Estimated Time:** 2 hours  
+**Dependencies:** Task 2.1, Task 2.2, Task 2.4, Task 2.5
+
+**Description:**
+Refactor existing `agent_coordinator.py` to use new agent architecture and message router.
+
+**Subtasks:**
+1. Move generic LLM call logic to base `Agent` class
+2. Update `run_full_validation_pipeline()` to use message router
+3. Integrate CEO, Editor, Reporter, QA, Fact-Checker agents
+4. Remove deprecated code
+5. Update imports in `main.py` and `digest.py`
+6. Integration tests
+
+**Acceptance Criteria:**
+- All agents use message router for communication
+- Pipeline orchestrates agents via messages
+- Backward compatibility with existing flow
+- Clean separation of concerns
+
+**Test Cases:**
+- Run full pipeline → All agents coordinate via messages → Digest generated
+- Pipeline with failures → Agents communicate fallbacks → Recovers gracefully
+
+---
+
+### Phase 3: Observability & Polish
+
+#### Task 3.1: Structured Logging System
+**Priority:** P1  
+**Estimated Time:** 2 hours  
+**Dependencies:** Task 1.2
+
+**Description:**
+Implement structured logging for all agent actions.
+
+**Subtasks:**
+1. Create `utils/agent_logger.py`
+2. Implement `AgentLogger` class
+3. Add `log_action()` method (writes to agent_logs table)
+4. Integrate into all agent classes
+5. Add log levels (DEBUG, INFO, WARNING, ERROR)
+6. Query functions for log analysis
+
+**Acceptance Criteria:**
+- All agent actions logged to database
+- Logs include input, output, success/failure, execution time
+- Logs queryable for debugging and metrics
+- JSON format for machine parsing
+
+**Test Cases:**
+- Agent executes action → Log entry created with all fields
+- Query logs for agent "qa_agent" in last 24h → Returns all QA actions
+- Failed action → Error message logged
+
+---
+
+#### Task 3.2: Metrics Collection System
+**Priority:** P1  
+**Estimated Time:** 2 hours  
+**Dependencies:** Task 3.1
+
+**Description:**
+Implement metrics collection for agent performance and system health.
+
+**Subtasks:**
+1. Create `utils/metrics_collector.py`
+2. Implement `MetricsCollector` class
+3. Methods:
+   - `get_agent_performance(agent_name, hours=24)`
+   - `get_api_health()`
+   - `get_digest_stats(digest_id)`
+   - `get_quality_metrics()`
+
+4. Integrate into CEO Agent status reports
+5. Add CLI command: `ceo_cli.py metrics`
+
+**Acceptance Criteria:**
+- Metrics calculated from agent_logs and clusters tables
+- CEO Agent includes metrics in status reports
+- Metrics show success rates, latencies, quality scores
+- Historical trend analysis possible
+
+**Test Cases:**
+- Get QA Agent performance → Returns success rate, avg time, error count
+- Get API health → Returns Claude/Groq success rates
+- Get digest stats for "2026-08-08-daily" → Returns story count, sources, quality
+
+---
+
+#### Task 3.3: Degraded Mode Implementation
+**Priority:** P1  
+**Estimated Time:** 2 hours  
+**Dependencies:** None
+
+**Description:**
+Implement fallback to rule-based heuristics when all LLMs fail.
+
+**Subtasks:**
+1. Create `agents/degraded_mode.py`
+2. Implement fallback functions:
+   - `cluster_by_source_and_date()` (no LLM clustering)
+   - `extract_simple_summary()` (first paragraph)
+   - `score_by_date()` (newer = higher score)
+
+3. Add degraded mode flag in config
+4. Integrate into agent_coordinator fallback chain
+5. Log degraded mode activation
+6. Notify CEO Agent
+
+**Acceptance Criteria:**
+- When all LLM APIs fail, system falls back to heuristics
+- Digest still generated (lower quality)
+- Degraded mode logged and reported
+- Board member optionally notified
+
+**Test Cases:**
+- Simulate all API failures → System uses heuristics → Digest generated
+- Degraded mode digest has basic summaries (first paragraphs)
+- CEO Agent reports "System in degraded mode"
+
+---
+
+#### Task 3.4: Error Handling & Recovery
+**Priority:** P1  
+**Estimated Time:** 2 hours  
+**Dependencies:** Task 2.2
+
+**Description:**
+Enhance error handling with graceful recovery and CEO escalation.
+
+**Subtasks:**
+1. Define error severity levels:
+   - INFO: Logged only
+   - WARNING: Logged, recoverable
+   - ERROR: Logged, fallback triggered
+   - CRITICAL: Logged, CEO escalation
+
+2. Implement retry logic with exponential backoff
+3. Add circuit breaker for failing APIs
+4. CEO Agent handles escalations
+5. Update all agent error handling
+
+**Acceptance Criteria:**
+- Transient errors trigger retries (max 3)
+- Persistent errors trigger fallbacks
+- Critical errors escalate to CEO Agent
+- System never crashes completely (always degrades gracefully)
+
+**Test Cases:**
+- API timeout → Retry 3 times → Fallback to Groq
+- Groq also fails → Degraded mode
+- All validation fails → CEO escalation → Board notified
+
+---
+
+### Phase 4: Testing & Documentation
+
+#### Task 4.1: Unit Tests for All Agents
+**Priority:** P0  
+**Estimated Time:** 4 hours  
+**Dependencies:** All Phase 2 tasks
+
+**Description:**
+Comprehensive unit tests for each agent.
+
+**Subtasks:**
+1. Create `tests/test_agents.py`
+2. Tests for:
+   - QA Agent validation logic
+   - Editor Agent story selection
+   - Reporter Agent summarization
+   - Fact-Checker Agent validation
+   - CEO Agent query handling
+   - State Manager sent tracking
+
+3. Mock LLM API calls
+4. Test all success and failure paths
+5. Achieve >80% code coverage
+
+**Acceptance Criteria:**
+- All agent methods unit tested
+- Edge cases covered (empty input, API failures, invalid data)
+- Tests pass consistently
+- Coverage report generated
+
+---
+
+#### Task 4.2: Integration Tests
+**Priority:** P0  
+**Estimated Time:** 3 hours  
+**Dependencies:** Task 4.1
+
+**Description:**
+End-to-end integration tests for full pipeline.
+
+**Subtasks:**
+1. Create `tests/test_pipeline.py`
+2. Tests for:
+   - Full pipeline (ingest → send)
+   - QA failure → backup stories
+   - Duplicate prevention across runs
+   - API failures → degraded mode
+   - State management
+
+3. Use test database (separate from production)
+4. Mock external services (RSS feeds, SMTP)
+5. Validate final digest content
+
+**Acceptance Criteria:**
+- Full pipeline tested end-to-end
+- Critical user stories validated (US-2, US-3)
+- Tests run in CI/CD pipeline
+- Clear assertions on final output
+
+---
+
+#### Task 4.3: Documentation Updates
+**Priority:** P1  
+**Estimated Time:** 2 hours  
+**Dependencies:** None
+
+**Description:**
+Update all documentation to reflect new multi-agent architecture.
+
+**Subtasks:**
+1. Update `README.md`:
+   - New architecture diagram
+   - Agent descriptions
+   - Setup instructions
+   - CEO CLI usage
+
+2. Update `agents/README.md`:
+   - Detailed agent responsibilities
+   - Communication protocol
+   - Extension guide (adding new agents)
+
+3. Create `DEPLOYMENT.md`:
+   - Production deployment guide
+   - Environment variables
+   - Database migration steps
+   - Monitoring setup
+
+4. Create `TROUBLESHOOTING.md`:
+   - Common issues
+   - Error messages
+   - Recovery procedures
+   - CEO Agent commands for debugging
+
+**Acceptance Criteria:**
+- Documentation is comprehensive and up-to-date
+- New users can set up system from README
+- Troubleshooting guide covers common issues
+- Agent extension guide clear
+
+---
+
+### Phase 5: Future Enhancements (Post-MVP)
+
+#### Task 5.1: Scout Agent - Source Discovery
+**Priority:** P2  
+**Estimated Time:** 4 hours  
+**Dependencies:** Phase 2 complete
+
+**Description:**
+Implement Scout Agent to discover new RSS sources autonomously.
+
+**Subtasks:**
+1. Create `agents/scout_agent.py`
+2. Implement source discovery logic:
+   - Search for "AI news RSS" using web search
+   - Validate feed URLs (feedparser)
+   - Check feed quality (recent articles, good parsing)
+
+3. Implement `add_source(feed_url, name)` method
+4. Implement `remove_dead_source(feed_url)` method
+5. Schedule weekly Scout runs
+6. Report to CEO Agent
+
+**Acceptance Criteria:**
+- Scout discovers new RSS feeds
+- Validates feed quality before adding
+- Removes dead feeds after 3 failures
+- Reports findings to CEO Agent
+
+---
+
+#### Task 5.2: LangGraph Orchestration
+**Priority:** P2  
+**Estimated Time:** 6 hours  
+**Dependencies:** Phase 2 complete
+
+**Description:**
+Integrate LangGraph for complex multi-agent workflows.
+
+**Subtasks:**
+1. Install langgraph package
+2. Define workflow graph for digest generation
+3. Convert linear pipeline to graph-based workflow
+4. Add conditional edges (QA pass/fail → different paths)
+5. Implement parallel agent execution
+6. Add workflow visualization
+
+**Acceptance Criteria:**
+- Pipeline uses LangGraph for orchestration
+- Complex workflows (QA failure → backups) handled elegantly
+- Parallel agent execution improves performance
+- Workflow graph visualizable
+
+---
+
+#### Task 5.3: Weekly Digest Mode
+**Priority:** P2  
+**Estimated Time:** 3 hours  
+**Dependencies:** Phase 1 complete
+
+**Description:**
+Add weekly digest mode with "Best of" curation.
+
+**Subtasks:**
+1. Add `DIGEST_MODE` config ("daily" or "weekly")
+2. Adjust LOOKBACK_HOURS based on mode (24h vs 168h)
+3. Editor Agent applies "Best of" curation for weekly
+4. Different email template for weekly
+5. CEO Agent can switch modes
+
+**Acceptance Criteria:**
+- Weekly mode aggregates last 7 days
+- Editor selects top 20 stories (higher quality bar)
+- Weekly digest has different template
+- Config switchable via CEO Agent
+
+---
+
+#### Task 5.4: Next.js Web Dashboard
+**Priority:** P3  
+**Estimated Time:** 12 hours  
+**Dependencies:** Phase 3 complete
+
+**Description:**
+Build web dashboard for CEO Agent interaction and metrics visualization.
+
+**Subtasks:**
+1. Create Next.js project (`dashboard/`)
+2. Build API endpoints (FastAPI backend)
+3. Implement pages:
+   - Dashboard home (key metrics)
+   - Agent performance
+   - Recent digests
+   - CEO chat interface
+   - Configuration panel
+
+4. Real-time updates (WebSocket)
+5. Deploy to Vercel/Netlify
+
+**Acceptance Criteria:**
+- Web UI for CEO Agent chat
+- Real-time metrics visualization
+- Responsive design (mobile/desktop)
+- Deployed and accessible
+
+---
+
+## Task Dependency Graph
+
+```json
+{
+  "waves": [
+    {
+      "wave": 1,
+      "tasks": ["1.1", "1.2", "1.5", "2.1"],
+      "description": "Initial setup - API validation, DB migration, QA backup mechanism, message router"
+    },
+    {
+      "wave": 2,
+      "tasks": ["1.3", "2.2", "2.4", "2.5"],
+      "dependencies": ["1.2", "2.1"],
+      "description": "State manager, CEO Agent, Reporter Agents, Fact-Checker"
+    },
+    {
+      "wave": 3,
+      "tasks": ["1.4", "2.3"],
+      "dependencies": ["1.3", "2.2"],
+      "description": "Cleanup filter, CEO CLI"
+    },
+    {
+      "wave": 4,
+      "tasks": ["2.6", "3.1", "3.3"],
+      "dependencies": ["2.1", "2.2", "2.4", "2.5"],
+      "description": "Refactor coordinator, structured logging, degraded mode"
+    },
+    {
+      "wave": 5,
+      "tasks": ["3.2", "3.4"],
+      "dependencies": ["3.1", "2.2"],
+      "description": "Metrics collection, error handling & recovery"
+    },
+    {
+      "wave": 6,
+      "tasks": ["4.1"],
+      "dependencies": ["2.1", "2.2", "2.4", "2.5", "2.6"],
+      "description": "Unit tests for all agents"
+    },
+    {
+      "wave": 7,
+      "tasks": ["4.2", "4.3"],
+      "dependencies": ["4.1"],
+      "description": "Integration tests and documentation"
+    },
+    {
+      "wave": 8,
+      "tasks": ["5.1", "5.2", "5.3", "5.4"],
+      "dependencies": ["4.2"],
+      "description": "Future enhancements (optional, post-MVP)"
+    }
+  ]
+}
+```
+
+---
+
+# Implementation Plan:
+
+## Phase 1: Critical Fixes (Week 1)
+**Goal:** Fix immediate issues preventing reliable operation
+
+**Tasks:** 1.1, 1.2, 1.3, 1.4, 1.5
+
+**Deliverables:**
+- API key validation at startup
+- Database schema updated with sent tracking
+- State manager preventing duplicate content
+- QA Agent backup story mechanism
+- Zero duplicates across pipeline runs
+
+---
+
+## Phase 2: Multi-Agent Architecture (Week 2)
+**Goal:** Build autonomous agent system with CEO oversight
+
+**Tasks:** 2.1, 2.2, 2.3, 2.4, 2.5, 2.6
+
+**Deliverables:**
+- Message router for agent communication
+- CEO Agent "ALEX" with CLI interface
+- Beat-based Reporter Agents
+- Enhanced Fact-Checker Agent
+- Refactored coordinator using message protocol
+
+---
+
+## Phase 3: Observability & Polish (Week 3, Part 1)
+**Goal:** Add monitoring, logging, and graceful degradation
+
+**Tasks:** 3.1, 3.2, 3.3, 3.4
+
+**Deliverables:**
+- Structured logging to database
+- Metrics collection system
+- Degraded mode fallbacks
+- Enhanced error handling with CEO escalation
+
+---
+
+## Phase 4: Testing & Documentation (Week 3, Part 2)
+**Goal:** Ensure production readiness
+
+**Tasks:** 4.1, 4.2, 4.3
+
+**Deliverables:**
+- Comprehensive unit tests (>80% coverage)
+- End-to-end integration tests
+- Updated documentation (README, deployment guides)
+
+---
+
+## Phase 5: Future Enhancements (Post-MVP)
+**Goal:** Advanced features based on user feedback
+
+**Tasks:** 5.1, 5.2, 5.3, 5.4
+
+**Deliverables:**
+- Scout Agent for source discovery
+- LangGraph orchestration
+- Weekly digest mode
+- Next.js web dashboard
+
+---
+
+## Notes
+
+---
+
+## Acceptance Criteria (Overall Spec)
+
+### Must Pass Before Release:
+✅ No duplicate content across multiple pipeline runs  
+✅ No old articles (before ABSOLUTE_CUTOFF_DATE) ever appear  
+✅ QA Agent requests backups when validation fails  
+✅ CEO Agent ALEX responds to board queries via CLI  
+✅ All API failures handled gracefully (no pipeline crashes)  
+✅ State management tracks sent content reliably  
+✅ Integration tests pass (full pipeline + failure recovery)  
+✅ Documentation complete and accurate  
+
+### Performance Targets:
+- Pipeline completes in < 5 minutes (daily digest)
+- Agent response time < 30 seconds each
+- API success rate > 95% (with fallbacks)
+- Zero downtime (graceful degradation)
+
+---
+
+## Rollout Plan
+
+### Week 1: Phase 1 (Critical Fixes)
+- Days 1-2: Tasks 1.1, 1.2, 1.3 (API validation, DB migration, state manager)
+- Days 3-4: Tasks 1.4, 1.5 (cleanup filter, QA backup mechanism)
+- Day 5: Integration testing, bug fixes
+
+**Milestone:** System works reliably, no duplicates, QA backups functional
+
+---
+
+### Week 2: Phase 2 (Multi-Agent Architecture)
+- Days 1-2: Tasks 2.1, 2.2, 2.3 (message router, CEO Agent, CLI)
+- Days 3-4: Tasks 2.4, 2.5 (reporter agents, fact-checker)
+- Day 5: Task 2.6 (refactor coordinator), integration
+
+**Milestone:** Full autonomous multi-agent system operational
+
+---
+
+### Week 3: Phase 3 & 4 (Polish & Testing)
+- Days 1-2: Tasks 3.1, 3.2, 3.3, 3.4 (observability, degraded mode, errors)
+- Days 3-4: Tasks 4.1, 4.2 (unit + integration tests)
+- Day 5: Task 4.3 (documentation), final testing
+
+**Milestone:** Production-ready system with comprehensive tests
+
+---
+
+### Future: Phase 5 (Enhancements)
+- Implement as needed based on user feedback
+- Scout Agent, LangGraph, Weekly mode, Web dashboard
+
+---
+
+## Risk Mitigation
+
+### Risk: API rate limits during development
+**Mitigation:** Use test mode (save to file), mock LLM calls in tests, implement caching
+
+### Risk: Database migration breaks existing data
+**Mitigation:** Backup database before migration, test on copy first, make migration idempotent
+
+### Risk: Agent communication overhead slows pipeline
+**Mitigation:** Profile performance, optimize message passing, use async where possible
+
+### Risk: Degraded mode produces low-quality content
+**Mitigation:** Add quality checks even in degraded mode, notify board member, require approval
+
+---
+
+## Success Metrics (Post-Launch)
+
+### Week 1 After Launch:
+- 0 duplicate stories reported
+- 0 old articles reported
+- 100% pipeline success rate (including fallbacks)
+- <5 CEO Agent queries from board member (autonomous)
+
+### Month 1 After Launch:
+- 95%+ API success rate
+- <2 minute average pipeline execution
+- 90%+ story quality score (board member feedback)
+- Scout Agent discovers 5+ new sources (if implemented)
+
+---
+
+**Status:** Ready for implementation  
+**Next Step:** Begin Phase 1, Task 1.1
+
+---
+
+## Notes
+
+### Development Notes
+- **API Key Priority:** Fix Anthropic API key validation first (Task 1.1) as it's causing current failures
+- **Database Backup:** Always backup `digest.db` before running Task 1.2 migration
+- **Testing Strategy:** Use test database for all testing tasks to avoid corrupting production data
+- **Parallel Execution:** Tasks within same wave can be executed in parallel where practical
+
+### Technical Considerations
+- **LLM Fallback Chain:** Claude (primary) → Groq (secondary) → Heuristics (tertiary)
+- **State Management:** All sent content tracking relies on Task 1.2 database migration being completed first
+- **Agent Communication:** All Phase 2 agent tasks depend on Task 2.1 message router being functional
+- **Performance:** Reporter Agents (Task 2.4) should use parallel processing to speed up summarization
+
+### Phase 5 Notes (Post-MVP)
+- Tasks 5.1-5.4 are optional enhancements for future releases
+- Can be implemented based on user feedback and business priorities
+- LangGraph (Task 5.2) provides significant workflow improvements but adds complexity
+- Web dashboard (Task 5.4) is lowest priority but highest user experience impact
+
+### Risk Reminders
+- **API Rate Limits:** Monitor API usage during development, use mock calls in tests
+- **Data Migration:** Task 1.2 migration is critical - test thoroughly before production
+- **Agent Overhead:** Message router (Task 2.1) could slow pipeline - profile and optimize if needed

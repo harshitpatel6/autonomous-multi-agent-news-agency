@@ -1,0 +1,6 @@
+feedparser
+numpy
+anthropic
+groq
+python-dotenv
+langgraph==1.2.10
