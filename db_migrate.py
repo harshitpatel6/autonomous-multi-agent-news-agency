@@ -38,7 +38,9 @@ def migrate_clusters_table(conn):
         'backup_used': 'INTEGER DEFAULT 0',
         'validation_status': 'TEXT',
         'fact_check_score': 'REAL',
-        'full_content': 'TEXT'
+        'full_content': 'TEXT',
+        'key_takeaways': 'TEXT',
+        'published_at': 'TEXT'
     }
     
     added_count = 0
@@ -60,6 +62,100 @@ def migrate_clusters_table(conn):
         print("No new columns needed for clusters table")
     
     return added_count
+
+
+def migrate_articles_table(conn):
+    """Add full_text column to articles table (cached full-article-body fetch, see utils/fulltext.py)"""
+    print("Migrating articles table...")
+
+    existing_columns = get_column_names(conn, 'articles')
+    if 'full_text' in existing_columns:
+        print("  - Column already exists: full_text")
+        return 0
+
+    conn.execute("ALTER TABLE articles ADD COLUMN full_text TEXT")
+    conn.commit()
+    print("  ✓ Added column: full_text")
+    return 1
+
+
+def migrate_seo_columns(conn):
+    """Add SEO Agent columns to the clusters table (agents/seo_agent.py)"""
+    print("Migrating clusters table for SEO Agent...")
+
+    existing_columns = get_column_names(conn, 'clusters')
+    columns_to_add = {
+        'seo_title': 'TEXT',
+        'seo_description': 'TEXT',
+        'seo_keywords': 'TEXT',
+        'seo_score': 'REAL',
+        'seo_audited_at': 'TEXT',
+    }
+
+    added_count = 0
+    for column_name, column_type in columns_to_add.items():
+        if column_name not in existing_columns:
+            try:
+                conn.execute(f"ALTER TABLE clusters ADD COLUMN {column_name} {column_type}")
+                print(f"  ✓ Added column: {column_name}")
+                added_count += 1
+            except sqlite3.OperationalError as e:
+                print(f"  ✗ Error adding {column_name}: {e}")
+        else:
+            print(f"  - Column already exists: {column_name}")
+
+    if added_count > 0:
+        conn.commit()
+        print(f"Added {added_count} new SEO columns to clusters table")
+    else:
+        print("No new SEO columns needed for clusters table")
+
+    return added_count
+
+
+def create_seo_tables(conn):
+    """Create seo_audit_runs + seo_page_issues tables (agents/seo_agent.py)"""
+    print("\nCreating SEO Agent tables...")
+
+    created = 0
+    if not table_exists(conn, 'seo_audit_runs'):
+        conn.execute("""
+            CREATE TABLE seo_audit_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_at TEXT NOT NULL,
+                articles_checked INTEGER DEFAULT 0,
+                avg_score REAL,
+                issues_found INTEGER DEFAULT 0,
+                trend REAL,
+                summary TEXT
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_seo_audit_runs_run_at ON seo_audit_runs(run_at)")
+        print("  ✓ Created seo_audit_runs table")
+        created += 1
+    else:
+        print("  - Table already exists: seo_audit_runs")
+
+    if not table_exists(conn, 'seo_page_issues'):
+        conn.execute("""
+            CREATE TABLE seo_page_issues (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cluster_id INTEGER NOT NULL,
+                severity TEXT NOT NULL,
+                code TEXT NOT NULL,
+                message TEXT NOT NULL,
+                detected_at TEXT NOT NULL,
+                FOREIGN KEY (cluster_id) REFERENCES clusters(id)
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_seo_page_issues_cluster_id ON seo_page_issues(cluster_id)")
+        print("  ✓ Created seo_page_issues table")
+        created += 1
+    else:
+        print("  - Table already exists: seo_page_issues")
+
+    conn.commit()
+    return created
 
 
 def create_digests_table(conn):
@@ -131,6 +227,7 @@ def create_indexes(conn):
         ("idx_clusters_sent_at", "clusters", "sent_at"),
         ("idx_clusters_digest_id", "clusters", "digest_id"),
         ("idx_clusters_validation_status", "clusters", "validation_status"),
+        ("idx_clusters_published_at", "clusters", "published_at"),
         ("idx_articles_cluster_id", "articles", "cluster_id"),
         ("idx_articles_published_at", "articles", "published_at"),
     ]
@@ -162,8 +259,8 @@ def verify_migration(conn):
     # Check clusters table columns
     clusters_columns = get_column_names(conn, 'clusters')
     required_columns = [
-        'sent_at', 'digest_id', 'quality_score', 
-        'backup_used', 'validation_status', 'fact_check_score'
+        'sent_at', 'digest_id', 'quality_score',
+        'backup_used', 'validation_status', 'fact_check_score', 'published_at'
     ]
     
     print("\nClusters table columns:")
@@ -271,8 +368,11 @@ def main():
         # Run migrations
         print("\n[Step 3] Running migrations...")
         columns_added = migrate_clusters_table(conn)
+        articles_columns_added = migrate_articles_table(conn)
         digests_created = create_digests_table(conn)
         logs_created = create_agent_logs_table(conn)
+        seo_columns_added = migrate_seo_columns(conn)
+        seo_tables_created = create_seo_tables(conn)
         indexes_created = create_indexes(conn)
         
         # Verify migration
@@ -284,8 +384,11 @@ def main():
         print("Migration Summary")
         print("="*60)
         print(f"Columns added to clusters: {columns_added}")
+        print(f"Columns added to articles: {articles_columns_added}")
         print(f"Digests table created: {'Yes' if digests_created else 'Already exists'}")
         print(f"Agent logs table created: {'Yes' if logs_created else 'Already exists'}")
+        print(f"SEO columns added to clusters: {seo_columns_added}")
+        print(f"SEO tables created: {seo_tables_created}")
         print(f"Indexes created: {indexes_created}")
         if backup_path:
             print(f"Backup saved to: {backup_path}")

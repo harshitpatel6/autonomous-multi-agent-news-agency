@@ -47,23 +47,23 @@ export default function DashboardHome() {
 
   return (
     <div>
-      <h2>Overview {live && <span className="badge good">● live</span>}</h2>
+      <h2>Overview {live && <span className="badge good">live</span>}</h2>
 
       <div className="card-grid">
         <div className="card">
-          <div className="label">Digests sent ({digestStats?.window_days ?? 7}d)</div>
+          <div className="label">📬 Digests sent ({digestStats?.window_days ?? 7}d)</div>
           <div className="value">{digestStats?.digests_sent ?? "—"}</div>
         </div>
         <div className="card">
-          <div className="label">Stories delivered</div>
+          <div className="label">📰 Stories delivered</div>
           <div className="value">{digestStats?.stories_sent ?? "—"}</div>
         </div>
         <div className="card">
-          <div className="label">Avg quality score</div>
+          <div className="label">⭐ Avg quality score</div>
           <div className="value">{quality?.avg_quality_score ?? "n/a"}</div>
         </div>
         <div className="card">
-          <div className="label">Backup story rate</div>
+          <div className="label">🔁 Backup story rate</div>
           <div className="value">{quality ? `${Math.round(quality.backup_rate * 100)}%` : "—"}</div>
         </div>
       </div>

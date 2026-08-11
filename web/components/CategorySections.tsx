@@ -9,14 +9,16 @@ type Props = {
   max?: number;
 };
 
-/** One homepage row: "<Category> — See all →" heading + a grid of its top stories. */
 export default function CategorySections({ category, articles, max = 3 }: Props) {
   if (articles.length === 0) return null;
   return (
-    <section className="category-section">
-      <div className="category-section-head">
-        <h2>{category.label}</h2>
-        <Link href={`/category/${category.slug}`}>See all →</Link>
+    <section style={{ marginBottom: 48 }}>
+      <div className="section-head">
+        <div className="section-head-title">
+          <span className="section-accent-dot" style={{ background: category.color }} />
+          <h2>{category.label}</h2>
+        </div>
+        <Link href={`/category/${category.slug}`}>See all stories →</Link>
       </div>
       <div className="article-grid">
         {articles.slice(0, max).map((a) => (

@@ -1,11 +1,639 @@
-Fatal Python error: init_import_site: Failed to import the site module
-Python runtime state: initialized
-Traceback (most recent call last):
-  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
-  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
-  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
-  File "<frozen importlib._bootstrap>", line 1176, in exec_module
-  File "<frozen site>", line 716, in <module>
-  File "<frozen site>", line 699, in main
-  File "<frozen site>", line 617, in venv
-PermissionError: [Errno 1] Operation not permitted: '/Users/harshit/Documents/NEWletter/venv/pyvenv.cfg'
+======================================================================
+🤖 AI NEWS AGENCY - Autonomous Multi-Agent Pipeline
+======================================================================
+
+======================================================================
+🔐 API KEY VALIDATION
+======================================================================
+
+[1/2] Validating Anthropic (Claude) API key...
+  ❌ Anthropic API key FAILED: Anthropic API key appears to be a placeholder: sk_ant_YOUR_ACTUAL_K...
+
+[2/2] Validating Groq API key...
+  ✅ Groq API key is VALID
+
+----------------------------------------------------------------------
+📊 VALIDATION SUMMARY
+----------------------------------------------------------------------
+⚠️  Only Groq API key is valid
+   System will use Groq only (no Claude fallback)
+   Claude error: Anthropic API key appears to be a placeholder: sk_ant_YOUR_ACTUAL_K...
+======================================================================
+
+
+[1/5] Ingesting feeds...
+  [warn] could not parse VentureBeat AI (https://venturebeat.com/ai/feed/)
+  [warn] could not parse Google AI Blog (https://ai.googleblog.com/feeds/posts/default/-/AI?alt=rss)
+  [warn] could not parse Generalist Research (https://generalist.com/feed)
+Per-source new article counts (new, old):
+  OpenAI: 0 | 1113 old articles filtered
+  Google DeepMind: 0 | 99 old articles filtered
+  Hugging Face: 0 | 834 old articles filtered
+  Anthropic: 0 | 18 old articles filtered
+  Cohere: 0 | 100 old articles filtered
+  Groq: 10
+  Stability AI: 0
+  Cursor: 0 | 3 old articles filtered
+  Papers with Code: 0
+  Semantic Scholar: 0
+  LangChain: 8
+  LlamaIndex: 10
+  vLLM: 8
+  Ollama: 9
+  LiteLLM: 6
+  Open WebUI: 10
+  ComfyUI: 8
+  Mistral Inference: 7
+  TechCrunch AI: 0 | 2 old articles filtered
+  The Verge AI: 0
+  Ars Technica AI: 0 | 20 old articles filtered
+  MIT Technology Review AI: 0 | 10 old articles filtered
+  VentureBeat AI: 0
+  MarkTechPost: 0
+  Hacker News AI: 0
+  Google AI Blog: 0
+  Microsoft AI Blog: 0 | 10 old articles filtered
+  AWS ML Blog: 0 | 10 old articles filtered
+  NVIDIA Developer: 100
+  Meta Research: 0 | 10 old articles filtered
+  Towards Data Science: 0 | 10 old articles filtered
+  Generalist Research: 0
+  AI Trends: 0 | 10 old articles filtered
+  TechCrunch Startups: 0 | 11 old articles filtered
+  Crunchbase News: 0 | 8 old articles filtered
+  Inc42: 0
+  Sifted: 0 | 18 old articles filtered
+  YourStory: 0
+  TensorFlow Blog: 25
+  PyTorch Blog: 0 | 8 old articles filtered
+  KDNuggets AI News: 0 | 5 old articles filtered
+Ingest done: 201 new articles, 2299 old articles filtered, 3 feed errors.
+
+[2/5] Cleaning up old articles...
+✓ Cleanup: removed 201 old articles (older than 72h or before 2026-07-01)
+
+[3/5] Clustering articles...
+Clustering articles from: 2026-08-06T11:30:42.062589+00:00
+Current UTC time: 2026-08-09T11:30:42.062600+00:00
+Cluster: no new articles to cluster.
+
+[4/5] Summarizing clusters...
+Summarize: processing 90/90 pending clusters...
+⚠️ [Reporter[General]] call_llm[groq] — FAILED (64ms)
+⚠️ [Reporter[General]] call_llm[groq] — FAILED (70ms)
+⚠️ [Reporter[General]] call_llm[groq] — FAILED (75ms)
+⚠️ [Reporter[General]] call_llm[gemini] — FAILED (470ms)
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+  [10/90] 0 done, 10 failed
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+  [20/90] 0 done, 20 failed
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+⚠️ [Reporter[General]] call_llm[gemini] — FAILED (507ms)
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+  [30/90] 0 done, 30 failed
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+  [40/90] 0 done, 40 failed
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+  [50/90] 0 done, 50 failed
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+  [60/90] 0 done, 60 failed
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+  [70/90] 0 done, 70 failed
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+⚠️ [Reporter[General]] call_llm[gemini] — FAILED (593ms)
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+  [80/90] 0 done, 80 failed
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+⚠️ [Reporter[General]] call_llm[gemini] — FAILED (616ms)
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — ok
+  [90/90] 1 done, 89 failed
+Summarize done: 1/90 clusters. Failed: 89. (Using beat Reporter Agents)
+
+[5/5] Building digest (Multi-Agent Validation)...
+
+🤖 Using Multi-Agent System for digest generation
+
+======================================================================
+🚀 MULTI-AGENT VALIDATION PIPELINE (via MessageRouter)
+======================================================================
+
+📦 Loaded 114 candidate clusters
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+ℹ️ [FactCheckerAgent] validate_cluster — ok
+✓ Fact-Checker Agent: 114/114 clusters passed
+⚠️ [EditorAgent] call_llm[groq] — FAILED (54ms)
+❌ [EditorAgent] call_llm — FAILED
+ℹ️ [EditorAgent] select_stories — ok
+✓ Editor Agent: Selected 12 stories for publication
+
+MULTI-AGENT VALIDATION COMPLETE
+======================================================================
+Initial clusters: 114
+After Fact-Checker: 114 clusters
+After Editor selection: 12 stories
+
+✅ READY FOR QA / PUBLICATION
+
+ℹ️ [QAAgent] validate_clusters_for_digest — ok
+🤖 QA Agent verdict: PASS (12/12 valid)
+✓ QA/Editor backup loop: shipping 12 validated stories
+
+✍️  Writer Agent: generating full articles for 12 stories
+⚠️ [Writer] call_llm[groq] — FAILED (52ms)
+❌ [Writer] call_llm — FAILED
+ℹ️ [Writer] write_full_article — FAILED
+⚠️ [Writer] call_llm[groq] — FAILED (29ms)
+❌ [Writer] call_llm — FAILED
+ℹ️ [Writer] write_full_article — FAILED
+⚠️ [Writer] call_llm[groq] — FAILED (34ms)
+❌ [Writer] call_llm — FAILED
+ℹ️ [Writer] write_full_article — FAILED
+⚠️ [Writer] call_llm[groq] — FAILED (40ms)
+❌ [Writer] call_llm — FAILED
+ℹ️ [Writer] write_full_article — FAILED
+❌ [Writer] call_llm — FAILED
+ℹ️ [Writer] write_full_article — FAILED
+❌ [Writer] call_llm — FAILED
+ℹ️ [Writer] write_full_article — FAILED
+❌ [Writer] call_llm — FAILED
+ℹ️ [Writer] write_full_article — FAILED
+❌ [Writer] call_llm — FAILED
+ℹ️ [Writer] write_full_article — FAILED
+❌ [Writer] call_llm — FAILED
+ℹ️ [Writer] write_full_article — FAILED
+❌ [Writer] call_llm — FAILED
+ℹ️ [Writer] write_full_article — FAILED
+❌ [Writer] call_llm — FAILED
+ℹ️ [Writer] write_full_article — FAILED
+❌ [Writer] call_llm — FAILED
+ℹ️ [Writer] write_full_article — FAILED
+
+✅ Digest generated: 5 sections, 12 stories
+
+[6/5] Sending digest...
+TEST MODE: Digest saved to digest_test_2026-08-09_000000.html
+✓ Marked 12 clusters as sent (digest: 2026-08-09-daily)
+
+======================================================================
+✅ PIPELINE COMPLETE - Newsletter sent successfully
+======================================================================
+======================================================================
+🤖 AI NEWS AGENCY - Autonomous Multi-Agent Pipeline
+======================================================================
+
+======================================================================
+🔐 API KEY VALIDATION
+======================================================================
+
+[1/2] Validating Anthropic (Claude) API key...
+  ❌ Anthropic API key FAILED: Anthropic API key appears to be a placeholder: sk_ant_YOUR_ACTUAL_K...
+
+[2/2] Validating Groq API key...
+  ✅ Groq API key is VALID
+
+----------------------------------------------------------------------
+📊 VALIDATION SUMMARY
+----------------------------------------------------------------------
+⚠️  Only Groq API key is valid
+   System will use Groq only (no Claude fallback)
+   Claude error: Anthropic API key appears to be a placeholder: sk_ant_YOUR_ACTUAL_K...
+======================================================================
+
+
+[1/5] Ingesting feeds...
+  [error] MIT Technology Review AI: [Errno 54] Connection reset by peer
+  [warn] could not parse VentureBeat AI (https://venturebeat.com/ai/feed/)
+  [warn] could not parse Google AI Blog (https://ai.googleblog.com/feeds/posts/default/-/AI?alt=rss)
+  [warn] could not parse Generalist Research (https://generalist.com/feed)
+Per-source new article counts (new, old):
+  OpenAI: 0 | 1114 old articles filtered
+  Google DeepMind: 0 | 100 old articles filtered
+  Hugging Face: 2 | 834 old articles filtered
+  Anthropic: 0 | 20 old articles filtered
+  Cohere: 0 | 100 old articles filtered
+  Groq: 0
+  Stability AI: 0
+  Cursor: 0 | 3 old articles filtered
+  Papers with Code: 0
+  Semantic Scholar: 0
+  LangChain: 0
+  LlamaIndex: 10
+  vLLM: 1
+  Ollama: 1
+  LiteLLM: 0
+  Open WebUI: 0
+  ComfyUI: 0
+  Mistral Inference: 0
+  TechCrunch AI: 0 | 8 old articles filtered
+  The Verge AI: 0
+  Ars Technica AI: 0 | 20 old articles filtered
+  MIT Technology Review AI: 0
+  VentureBeat AI: 0
+  MarkTechPost: 0
+  Hacker News AI: 20
+  Google AI Blog: 0
+  Microsoft AI Blog: 0 | 10 old articles filtered
+  AWS ML Blog: 0 | 17 old articles filtered
+  NVIDIA Developer: 100
+  Meta Research: 0 | 10 old articles filtered
+  Towards Data Science: 0 | 12 old articles filtered
+  Generalist Research: 0
+  AI Trends: 0 | 10 old articles filtered
+  TechCrunch Startups: 0 | 14 old articles filtered
+  Crunchbase News: 2 | 7 old articles filtered
+  Inc42: 10
+  Sifted: 5 | 19 old articles filtered
+  YourStory: 13
+  TensorFlow Blog: 25
+  PyTorch Blog: 0 | 10 old articles filtered
+  KDNuggets AI News: 0 | 8 old articles filtered
+Ingest done: 189 new articles, 2316 old articles filtered, 4 feed errors.
+
+[2/5] Cleaning up old articles...
+✓ Cleanup: removed 201 old articles (older than 72h or before 2026-07-01)
+
+[3/5] Clustering articles...
+Clustering articles from: 2026-08-07T11:52:02.754098+00:00
+Current UTC time: 2026-08-10T11:52:02.754107+00:00
+Found 74 unclustered articles within lookback window.
+Article published dates range: 2026-08-10 to Mon, 10 Au
+Cluster done: 74 articles grouped into 70 clusters.
+
+[4/5] Summarizing clusters...
+Summarize: processing 150/187 pending clusters...
+ℹ️ [Reporter[General]] summarize_cluster — ok
+ℹ️ [Reporter[General]] summarize_cluster — ok
+ℹ️ [Reporter[General]] summarize_cluster — ok
+ℹ️ [Reporter[General]] summarize_cluster — ok
+ℹ️ [Reporter[General]] summarize_cluster — ok
+ℹ️ [Reporter[General]] summarize_cluster — ok
+ℹ️ [Reporter[General]] summarize_cluster — ok
+ℹ️ [Reporter[General]] summarize_cluster — ok
+ℹ️ [Reporter[General]] summarize_cluster — ok
+ℹ️ [Reporter[General]] summarize_cluster — ok
+  [10/150] 10 done, 0 failed
+⚠️ [Reporter[General]] call_llm[groq] — FAILED (7448ms)
+ℹ️ [Reporter[General]] summarize_cluster — ok
+ℹ️ [Reporter[General]] summarize_cluster — ok
+ℹ️ [Reporter[General]] summarize_cluster — ok
+ℹ️ [Reporter[General]] summarize_cluster — ok
+ℹ️ [Reporter[General]] summarize_cluster — ok
+ℹ️ [Reporter[General]] summarize_cluster — ok
+⚠️ [Reporter[General]] call_llm[groq] — FAILED (134ms)
+⚠️ [Reporter[General]] call_llm[groq] — FAILED (133ms)
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+⚠️ [Reporter[General]] call_llm[groq] — FAILED (1220ms)
+⚠️ [Reporter[General]] call_llm[groq] — FAILED (9234ms)
+ℹ️ [Reporter[General]] summarize_cluster — ok
+⚠️ [Reporter[General]] call_llm[groq] — FAILED (40ms)
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+  [20/150] 17 done, 3 failed
+⚠️ [Reporter[General]] call_llm[groq] — FAILED (65ms)
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+⚠️ [Reporter[General]] call_llm[groq] — FAILED (33ms)
+⚠️ [Reporter[General]] call_llm[gemini] — FAILED (205ms)
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+⚠️ [Reporter[General]] call_llm[groq] — FAILED (30455ms)
+⚠️ [Reporter[General]] call_llm[groq] — FAILED (37ms)
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+⚠️ [Reporter[General]] call_llm[gemini] — FAILED (278ms)
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+⚠️ [Reporter[General]] call_llm[gemini] — FAILED (30764ms)
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+⚠️ [Reporter[General]] call_llm[gemini] — FAILED (194ms)
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+⚠️ [Reporter[General]] call_llm[gemini] — FAILED (176ms)
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+⚠️ [Reporter[General]] call_llm[gemini] — FAILED (286ms)
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+  [30/150] 17 done, 13 failed
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+  [40/150] 17 done, 23 failed
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED
+ℹ️ [Reporter[General]] summarize_cluster — FAILED
+❌ [Reporter[General]] call_llm — FAILED

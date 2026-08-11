@@ -5,12 +5,15 @@ Each reporter uses a beat-specific prompt so the tone/focus matches the story ty
 import json
 from typing import Dict, List, Optional
 
+from utils.fulltext import get_full_text
 from agents.base_agent import Agent
 from agents.message_router import register_agent
 
-BASE_PROMPT_TEMPLATE = """You are the {beat_name} Reporter at a professional AI industry newsletter, writing \
-for readers who build with AI for a living. Below are multiple articles covering what may be the same \
-underlying story, from different sources.
+BASE_PROMPT_TEMPLATE = """You are the {beat_name} Reporter at a professional AI industry newsletter — an \
+experienced beat reporter, not a summarization tool. Below are one or more articles covering what may be \
+the same underlying story, from different sources. Sources marked (FULL TEXT) are the actual article body; \
+sources marked (TEASER ONLY) are just a short RSS blurb, so lean on the FULL TEXT sources for specifics \
+when both are present.
 
 {beat_focus}
 
@@ -32,11 +35,15 @@ tools or devices launched commercially
    If a story could fit more than one (e.g. a startup announcing a funding round), pick the most specific: a \
 new company/product launching is Startup Launches even if it also raised money; a funding round for an \
 already-established company is Funding & Investment.
-3. Write a well-reported SUMMARY (4-6 sentences, plain language, no hype, no filler like "in conclusion" or \
-"it remains to be seen"). Structure it as: what actually happened (concrete, specific — names, numbers, \
-dates when given) → why it matters for someone building with AI → any relevant context or nuance that a \
-skim-only reader would miss. If sources disagree on a fact or framing, name the discrepancy in one clause \
-rather than glossing over it. Never speculate beyond what the sources say.
+3. Write a well-reported SUMMARY (4-6 sentences). Lead with the single most important concrete fact — not a \
+throat-clearing setup sentence. Pull out every specific name, number, and example the sources give you (if a \
+source lists multiple companies/deals/products, name them, don't collapse them into "various" or "several"). \
+Then, in your own words as a reporter who gets why this matters, say what it actually means for someone \
+building with AI — not a generic "this is significant because..." line, but a specific claim. If sources \
+disagree on a fact or framing, name the discrepancy in one clause. Never speculate beyond what the sources \
+say, and never write a sentence announcing that a detail is missing ("specific details are not provided," \
+"it remains unclear whether...") — if you don't have it, just don't mention it. No hype words \
+("game-changing", "revolutionary"), no filler ("in conclusion", "it remains to be seen").
 4. Score how important this story is for someone who builds with AI day to day, from 1 (minor/noise) to 10 \
 (major development). Consider novelty and practical impact, not just how many outlets covered it.
 
@@ -62,8 +69,12 @@ class ReporterAgent(Agent):
     def _build_sources_block(articles: List[Dict]) -> str:
         lines = []
         for a in articles:
-            snippet = (a.get("summary_raw") or "")[:500]
-            lines.append(f"- [{a['source']}] {a['title']}\n  {snippet}")
+            full_text = get_full_text(a["id"], a.get("url")) if a.get("id") else ""
+            if full_text:
+                lines.append(f"- [{a['source']}] {a['title']} (FULL TEXT)\n  {full_text[:2000]}")
+            else:
+                snippet = (a.get("summary_raw") or "")[:500]
+                lines.append(f"- [{a['source']}] {a['title']} (TEASER ONLY)\n  {snippet}")
         return "\n".join(lines)
 
     def summarize_cluster(self, articles: List[Dict]) -> Optional[Dict]:

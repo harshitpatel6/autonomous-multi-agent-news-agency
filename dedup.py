@@ -9,18 +9,23 @@ and it FAILED to merge genuinely related stories that used different wording
 lawsuit" - same story, near-zero word overlap). That's a ceiling on what
 word-matching can do, not a threshold-tuning problem.
 
-v2 has Claude do the grouping directly. It's one extra call per run (cheap -
-this runs once per digest, not per article or per subscriber), and it
-understands semantic/topical relationships that word overlap can't.
+v2 has an LLM do the grouping directly. It's one extra call per run (cheap - this
+runs once per digest, not per article or per subscriber), and it understands
+semantic/topical relationships that word overlap can't.
+
+Routed through Agent.call_llm (Claude -> Groq -> Gemini) rather than a raw Claude
+client: this used to be a single point of failure with no fallback at all -
+if Claude was down, clustering silently degraded to "every article is its own
+cluster" even when Groq/Gemini were perfectly healthy.
 """
 import json
 from datetime import datetime, timedelta, timezone
-import anthropic
 
-from config import LOOKBACK_HOURS, ANTHROPIC_API_KEY, CLAUDE_MODEL
+from config import LOOKBACK_HOURS
 from db import get_connection
+from agents.base_agent import Agent
 
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+_agent = Agent("Clusterer")
 
 CLUSTER_PROMPT = """Below is a numbered list of article headlines and snippets from \
 the last {hours} hours of AI news. Group them into stories: articles that cover the \
@@ -110,13 +115,9 @@ def cluster_articles():
             max_idx=n - 1,
         )
         try:
-            response = client.messages.create(
-                model=CLAUDE_MODEL,
-                max_tokens=2000,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            text = response.content[0].text.strip()
-            text = text.replace("```json", "").replace("```", "").strip()
+            text = _agent.call_llm(prompt, max_tokens=2000, json_mode=True)
+            if not text:
+                raise RuntimeError("all LLM providers failed or circuit open")
             parsed = json.loads(text)
             groups = parsed["groups"]
 

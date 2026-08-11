@@ -106,7 +106,7 @@ def fetch_feeds():
         old_flag = f" | {old} old articles filtered" if old > 0 else ""
         print(f"  {name}: {new}{old_flag}")
     print(f"Ingest done: {new_count} new articles, {old_count} old articles filtered, {error_count} feed errors.")
-    return new_count
+    return {"new": new_count, "old": old_count, "errors": error_count}
 
 
 if __name__ == "__main__":

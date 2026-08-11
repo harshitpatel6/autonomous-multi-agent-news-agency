@@ -12,7 +12,7 @@ try:
     from agents.state_manager import StateManager
     from agents.qa_agent import qa_agent
     from agents.editor_agent import editor_agent
-    from agents.writer_agent import writer_agent
+    from agents.writer_agent import ensure_full_article
     AGENTS_AVAILABLE = True
 except ImportError:
     AGENTS_AVAILABLE = False
@@ -262,39 +262,6 @@ def _next_issue_number():
         conn.close()
 
 
-def _ensure_full_article(cluster):
-    """Generate + cache a full website article for a selected cluster, if it doesn't have one yet."""
-    conn = get_connection()
-    row = conn.execute("SELECT full_content FROM clusters WHERE id = ?", (cluster["id"],)).fetchone()
-    if row and row["full_content"]:
-        conn.close()
-        return
-
-    writer_articles = conn.execute(
-        "SELECT source, title, url, summary_raw FROM articles WHERE cluster_id = ?",
-        (cluster["id"],),
-    ).fetchall()
-    conn.close()
-
-    if not writer_articles:
-        return
-
-    try:
-        full_content = writer_agent.write_full_article(
-            cluster.get("headline"), cluster.get("category"), cluster.get("summary"),
-            [dict(a) for a in writer_articles],
-        )
-    except Exception as e:
-        print(f"  [error] Writer Agent failed for cluster {cluster['id']}: {str(e)[:100]}")
-        full_content = None
-
-    if full_content:
-        conn = get_connection()
-        conn.execute("UPDATE clusters SET full_content = ? WHERE id = ?", (full_content, cluster["id"]))
-        conn.commit()
-        conn.close()
-
-
 def build_digest_html():
     """
     Build digest using multi-agent validation pipeline
@@ -356,7 +323,7 @@ def build_digest_html():
         # website article (cached in clusters.full_content so it only runs once per story).
         print(f"\n✍️  Writer Agent: generating full articles for {len(selected_clusters)} stories")
         for cluster in selected_clusters:
-            _ensure_full_article(cluster)
+            ensure_full_article(cluster)
 
         # Sort by importance so the strongest stories lead each section (and the hero).
         selected_clusters = sorted(

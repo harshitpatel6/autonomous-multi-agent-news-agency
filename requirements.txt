@@ -2,5 +2,7 @@ feedparser
 numpy
 anthropic
 groq
+google-genai
 python-dotenv
 langgraph==1.2.10
+trafilatura

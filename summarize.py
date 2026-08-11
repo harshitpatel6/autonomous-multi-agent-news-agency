@@ -9,7 +9,7 @@ import anthropic
 from groq import Groq
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
-from config import ANTHROPIC_API_KEY, CLAUDE_MODEL, GROQ_API_KEY, GROQ_MODEL, LLM_PROVIDER, LOOKBACK_HOURS
+from config import ANTHROPIC_API_KEY, CLAUDE_MODEL, GROQ_API_KEY, GROQ_MODEL, LLM_PROVIDER, LOOKBACK_HOURS, SUMMARIZE_BATCH_SIZE
 from db import get_connection
 
 try:
@@ -111,7 +111,7 @@ def _summarize_one_cluster(cluster_id):
     """Fetch a cluster's articles and summarize via the beat-specific Reporter Agent (Task 2.4)."""
     conn = get_connection()
     articles = conn.execute(
-        "SELECT source, title, summary_raw, published_at FROM articles WHERE cluster_id = ?",
+        "SELECT id, source, title, url, summary_raw, published_at FROM articles WHERE cluster_id = ?",
         (cluster_id,),
     ).fetchall()
     conn.close()
@@ -154,55 +154,55 @@ def _summarize_with_reporters(conn, clusters, max_workers=5):
 
 def summarize_clusters():
     conn = get_connection()
-    
-    # Get timestamp of last digest sent
-    last_digest = conn.execute(
-        "SELECT MAX(sent_at) as last_sent FROM digest_log"
-    ).fetchone()
-    last_sent_time = last_digest["last_sent"] if last_digest["last_sent"] else "2000-01-01"
-    
-    # CRITICAL: Query only clusters that:
+
+    # Query only clusters that:
     # 1. Have not been summarized yet (summary IS NULL)
-    # 2. Were created after last digest
-    # 3. Have NOT been sent yet (sent_at IS NULL) - Task 1.4
+    # 2. Have NOT been sent in an email digest yet (sent_at IS NULL) - Task 1.4
+    #
+    # NOTE: this used to also require created_at > last email digest's sent_at.
+    # That silently orphaned any cluster that failed to summarize (e.g. during an
+    # LLM outage) before the *next* email went out - once sent_at moved past its
+    # created_at, it could never be picked up again, on the site or the email side.
+    # publish.py runs every 15 min independent of the twice-daily email (see its
+    # module docstring), so gating its batch on the email schedule was a bug, not
+    # a feature. sent_at IS NULL is sufficient to avoid re-summarizing sent stuff.
     clusters = conn.execute("""
-        SELECT id FROM clusters 
-        WHERE summary IS NULL 
-          AND created_at > ?
+        SELECT id FROM clusters
+        WHERE summary IS NULL
           AND sent_at IS NULL
         ORDER BY created_at ASC
-        LIMIT 50
-    """, (last_sent_time,)).fetchall()
-    
+        LIMIT ?
+    """, (SUMMARIZE_BATCH_SIZE,)).fetchall()
+
     # Log filtering stats
     total_unsummarized = conn.execute(
         """SELECT COUNT(*) as count FROM clusters WHERE summary IS NULL"""
     ).fetchone()['count']
-    
+
     sent_unsummarized = conn.execute(
-        """SELECT COUNT(*) as count FROM clusters 
+        """SELECT COUNT(*) as count FROM clusters
            WHERE summary IS NULL AND sent_at IS NOT NULL"""
     ).fetchone()['count']
-    
+
     if sent_unsummarized > 0:
         print(f"✓ Skipped {sent_unsummarized} unsummarized clusters that were already sent")
 
     if not clusters:
         print("Summarize: no new clusters to summarize.")
         conn.close()
-        return 0
+        return 0, 0
 
     total = len(clusters)
     done = 0
     failed = 0
 
-    print(f"Summarize: processing {total} new clusters since {last_sent_time[:10]}...")
+    print(f"Summarize: processing {total}/{total_unsummarized - sent_unsummarized} pending clusters...")
 
     if REPORTERS_AVAILABLE:
         done, failed = _summarize_with_reporters(conn, clusters)
         conn.close()
         print(f"Summarize done: {done}/{total} clusters. Failed: {failed}. (Using beat Reporter Agents)")
-        return done
+        return done, failed
 
     for idx, c in enumerate(clusters, 1):
         cluster_id = c["id"]
@@ -294,7 +294,7 @@ def summarize_clusters():
 
     conn.close()
     print(f"Summarize done: {done}/{total} clusters. Failed: {failed}. (Using {LLM_PROVIDER.upper()})")
-    return done
+    return done, failed
 
 
 if __name__ == "__main__":

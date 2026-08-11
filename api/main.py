@@ -101,20 +101,67 @@ def get_digest_detail(digest_id: str):
 # Public articles (website)
 # ---------------------------------------------------------------------------
 @app.get("/api/articles")
-def list_articles(limit: int = 30, category: Optional[str] = None):
-    """Published stories for the public site's article list, newest first."""
+def list_articles(limit: int = 30, offset: int = 0, category: Optional[str] = None):
+    """Published stories for the public site's article list, newest first.
+
+    Gated on published_at (set by publish.py the moment a story clears QA/Fact-Check),
+    not sent_at (which only tracks the twice-daily email digest) - the site goes live
+    independently of and ahead of the email. `offset` supports pagination (e.g. the
+    admin history tab) without changing the default behavior for existing callers.
+    """
     conn = get_connection()
-    query = """SELECT id, headline, category, summary, importance_score, sent_at
-               FROM clusters WHERE sent_at IS NOT NULL"""
+    query = """SELECT id, headline, category, summary, importance_score, published_at
+               FROM clusters WHERE published_at IS NOT NULL"""
     params: list = []
     if category:
         query += " AND category = ?"
         params.append(category)
-    query += " ORDER BY sent_at DESC LIMIT ?"
+    query += " ORDER BY published_at DESC LIMIT ? OFFSET ?"
     params.append(limit)
+    params.append(offset)
     rows = conn.execute(query, params).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+@app.get("/api/articles/count")
+def count_articles(category: Optional[str] = None):
+    """Total published-story count, for paginating the admin history tab."""
+    conn = get_connection()
+    query = "SELECT COUNT(*) as total FROM clusters WHERE published_at IS NOT NULL"
+    params: list = []
+    if category:
+        query += " AND category = ?"
+        params.append(category)
+    total = conn.execute(query, params).fetchone()["total"]
+    conn.close()
+    return {"total": total}
+
+
+@app.get("/api/pipeline/runs")
+def list_pipeline_runs(limit: int = 20):
+    """Recent publish.py runs with per-stage counts and top error reasons, so the
+    dashboard can answer 'why did only N stories publish this cycle' directly instead
+    of requiring someone to grep publish.log."""
+    import json as _json
+
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT id, started_at, finished_at, new_articles, old_articles_filtered, feed_errors,
+                  clusters_pending, clusters_summarized_ok, clusters_summarized_failed,
+                  publish_candidates, published_count, published_ids, error_summary
+           FROM pipeline_runs ORDER BY started_at DESC LIMIT ?""",
+        (limit,),
+    ).fetchall()
+    conn.close()
+
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["published_ids"] = _json.loads(d["published_ids"]) if d["published_ids"] else []
+        d["error_summary"] = _json.loads(d["error_summary"]) if d["error_summary"] else []
+        result.append(d)
+    return result
 
 
 @app.get("/api/articles/{article_id}")
@@ -122,8 +169,9 @@ def get_article(article_id: int):
     """Full article detail: headline, full body, and the original sources it was built from."""
     conn = get_connection()
     cluster = conn.execute(
-        """SELECT id, headline, category, summary, full_content, importance_score, sent_at
-           FROM clusters WHERE id = ? AND sent_at IS NOT NULL""",
+        """SELECT id, headline, category, summary, full_content, key_takeaways, importance_score,
+                  published_at, seo_title, seo_description, seo_keywords
+           FROM clusters WHERE id = ? AND published_at IS NOT NULL""",
         (article_id,),
     ).fetchone()
     if not cluster:
@@ -136,17 +184,93 @@ def get_article(article_id: int):
     ).fetchall()
 
     related = conn.execute(
-        """SELECT id, headline, category, sent_at FROM clusters
-           WHERE category = ? AND id != ? AND sent_at IS NOT NULL
-           ORDER BY sent_at DESC LIMIT 4""",
+        """SELECT id, headline, category, published_at FROM clusters
+           WHERE category = ? AND id != ? AND published_at IS NOT NULL
+           ORDER BY published_at DESC LIMIT 4""",
         (cluster["category"], article_id),
     ).fetchall()
     conn.close()
 
+    import json as _json
+
     result = dict(cluster)
+    try:
+        result["key_takeaways"] = _json.loads(result["key_takeaways"]) if result["key_takeaways"] else []
+    except (TypeError, ValueError):
+        result["key_takeaways"] = []
     result["sources"] = [dict(s) for s in sources]
     result["related"] = [dict(r) for r in related]
     return result
+
+
+# ---------------------------------------------------------------------------
+# SEO Agent (agents/seo_agent.py)
+# ---------------------------------------------------------------------------
+@app.get("/api/seo/overview")
+def seo_overview(runs: int = 14):
+    """Score trend over the last N audit sweeps, plus the most recent site-wide issues."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT id, run_at, articles_checked, avg_score, issues_found, trend, summary
+           FROM seo_audit_runs ORDER BY run_at DESC LIMIT ?""",
+        (runs,),
+    ).fetchall()
+
+    total = conn.execute("SELECT COUNT(*) AS n FROM clusters WHERE published_at IS NOT NULL").fetchone()["n"]
+    audited = conn.execute(
+        "SELECT COUNT(*) AS n FROM clusters WHERE published_at IS NOT NULL AND seo_audited_at IS NOT NULL"
+    ).fetchone()["n"]
+    conn.close()
+
+    import json as _json
+    history = []
+    latest_site_issues: list = []
+    for r in rows:
+        d = dict(r)
+        summary = _json.loads(d.pop("summary")) if d.get("summary") else {}
+        if not latest_site_issues:
+            latest_site_issues = summary.get("site_issues", [])
+        history.append(d)
+
+    return {
+        "runs": history,
+        "latest_site_issues": latest_site_issues,
+        "articles_total": total,
+        "articles_audited": audited,
+        "articles_pending": max(0, total - audited),
+    }
+
+
+@app.get("/api/seo/pages")
+def seo_pages(limit: int = 50, only_issues: bool = False):
+    """Per-article SEO snapshot for the admin table: score, meta, and current issues."""
+    conn = get_connection()
+    query = """SELECT id, headline, category, seo_title, seo_description, seo_score, seo_audited_at
+               FROM clusters WHERE published_at IS NOT NULL"""
+    if only_issues:
+        query += " AND (seo_score IS NULL OR seo_score < 100)"
+    query += " ORDER BY (seo_score IS NULL), seo_score ASC LIMIT ?"
+    rows = conn.execute(query, (limit,)).fetchall()
+
+    result = []
+    for r in rows:
+        d = dict(r)
+        issues = conn.execute(
+            "SELECT severity, code, message FROM seo_page_issues WHERE cluster_id = ? ORDER BY severity",
+            (d["id"],),
+        ).fetchall()
+        d["issues"] = [dict(i) for i in issues]
+        result.append(d)
+    conn.close()
+    return result
+
+
+@app.post("/api/seo/audit")
+def seo_audit_now(limit: int = 15):
+    """Manual trigger for an audit sweep (dashboard 'Run now' button) - the same
+    sweep publish.py already runs automatically every cycle, just on-demand."""
+    from agents.seo_agent import seo_agent
+    return seo_agent.audit_site(limit=limit)
 
 
 # ---------------------------------------------------------------------------
