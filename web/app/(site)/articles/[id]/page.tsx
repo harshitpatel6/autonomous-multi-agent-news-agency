@@ -6,6 +6,7 @@ import { formatDate, formatDateTime, readTime } from "@/lib/format";
 import ReadingProgressBar from "@/components/ReadingProgressBar";
 import ArticleShareBar from "@/components/ArticleShareBar";
 import ArticleCard from "@/components/ArticleCard";
+import { ArticleGraphicHeader } from "@/components/ArticleThumb";
 
 type Props = { params: { id: string } };
 
@@ -28,6 +29,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       type: "article",
       publishedTime: res.published_at ?? undefined,
       siteName: "AI Daily",
+      images: res.image_url ? [res.image_url] : undefined,
     },
     twitter: {
       card: "summary_large_image",
@@ -114,18 +116,33 @@ export default async function ArticleDetailPage({ params }: Props) {
           </div>
         </header>
 
-        {/* GENERATIVE HERO COVER HEADER */}
+        {/* HERO COVER: real photo from the original source article when we have one
+            (agents/writer_agent.py + utils/fulltext.py), else the generated gradient. */}
         <div className="article-cover">
-          <div
-            className="article-cover-bg"
-            style={{
-              background: `linear-gradient(135deg, ${cat.color} 0%, #0f172a 90%)`,
-            }}
-          >
-            <span className="article-cover-caption">
-              ⚡ Autonomous AI Newsroom — Fact-Checked Editorial Coverage
-            </span>
-          </div>
+          {article.image_url ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={article.image_url} alt="" className="article-cover-photo" />
+              <div className="article-cover-photo-overlay" />
+              {article.image_credit && (
+                <a
+                  href={article.image_credit_url || undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="article-cover-caption article-cover-credit"
+                >
+                  Photo: {article.image_credit}
+                </a>
+              )}
+            </>
+          ) : (
+            <div className="article-cover-bg">
+              <ArticleGraphicHeader color={cat.color} label={label} id={article.id} hideBadge />
+              <span className="article-cover-caption" style={{ position: "relative", zIndex: 2 }}>
+                ⚡ Autonomous AI Newsroom — Fact-Checked Editorial Coverage
+              </span>
+            </div>
+          )}
         </div>
 
         {/* KEY TAKEAWAYS BOX */}

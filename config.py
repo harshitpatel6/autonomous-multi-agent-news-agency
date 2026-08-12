@@ -44,24 +44,14 @@ FEEDS = [
     ("Mistral Inference", "https://github.com/mistralai/mistral-inference/releases.atom"),
     
     # 4. Technology News
-    # ("TechCrunch AI", "https://techcrunch.com/category/artificial-intelligence/feed/"),
-    # ("The Verge AI", "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"),
-    # ("Ars Technica AI", "https://feeds.arstechnica.com/arstechnica/technology-lab"),
+    # Third-party news/media outlets removed entirely (not just disabled) - copyright/
+    # reprint risk on syndicated journalism, as opposed to a company's own blog posts.
     # ("MIT Technology Review AI", "https://www.technologyreview.com/topic/artificial-intelligence/feed/"),
     # ("VentureBeat AI", "https://venturebeat.com/ai/feed/"),
-    # ("MarkTechPost", "https://www.marktechpost.com/feed/"),
-    
+
     # 5. Developer Communities
-    # NOTE: this is a broad keyword query over ALL new HN posts (not a curated AI section),
-    # so it pulls in off-topic submissions whose title/URL just happens to contain "AI",
-    # "LLM", or "agent" somewhere. Worse, for link posts to twitter.com/x.com, utils/fulltext.py's
-    # trafilatura scrape of the linked page can grab a different tweet than the one the HN
-    # title is actually about (X's non-JS HTML is unreliable for isolating one specific status) -
-    # so the "source" title shown on an article can look completely unrelated to the story text,
-    # even though the story text itself is accurately summarized from whatever got scraped.
-    # Seen in the wild: cluster 237 ("AI Agent Finds Workaround") cited HN post "I built the AI
-    # platform for a company crucial to a small nation's food safety" as its only source.
-    # ("Hacker News AI", "https://hnrss.org/newest?q=AI+OR+LLM+OR+agent"),
+    # Hacker News AI (hnrss keyword query) removed entirely - copyright/reprint risk on
+    # syndicated journalism it links out to, same as the Technology News sources above.
     # ("Reddit LocalLLaMA", "https://www.reddit.com/r/LocalLLaMA/.rss"),
     # ("Reddit MachineLearning", "https://www.reddit.com/r/MachineLearning/.rss"),
     # ("Reddit Artificial", "https://www.reddit.com/r/artificial/.rss"),
@@ -83,11 +73,6 @@ FEEDS = [
     # startup launches. Classification into "Business & Enterprise AI" /
     # "Funding & Investment" / "Startup Launches" happens per-cluster by the Reporter
     # Agent's LLM prompt (agents/reporter_agent.py), not per-feed.
-    # ("TechCrunch Startups", "https://techcrunch.com/category/startups/feed/"),
-    # ("Crunchbase News", "https://news.crunchbase.com/feed/"),
-    # ("Inc42", "https://inc42.com/feed/"),
-    # ("Sifted", "https://sifted.eu/feed/"),
-    # ("YourStory", "https://yourstory.com/feed"),
 
 
     #9.USA VC and accelerators

@@ -816,8 +816,29 @@ a {
   inset: 0;
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.05) 0%, rgba(15, 23, 42, 0.75) 100%);
 }
+.ac-thumb-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+.ac:hover .ac-thumb-photo { transform: scale(1.04); }
+.ac-photo-credit {
+  position: absolute;
+  z-index: 2;
+  right: 10px;
+  bottom: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
 .ac-category-badge {
-  position: relative;
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
   z-index: 2;
   font-size: 11px;
   font-weight: 800;
@@ -1148,7 +1169,12 @@ a {
 
 .article-cover {
   width: 100%;
-  height: 380px;
+  /* 2:1 stays close to the ~1.9:1 (1200x630) og:image ratio most scraped source photos
+     actually are, so object-fit: cover on .article-cover-photo below only has to trim
+     a sliver instead of cropping deep into the photo the way a fixed 380px height did
+     at this column's full 1040px width (~2.74:1) - that mismatch was the "zoomed in"
+     look, not the cover container itself. */
+  aspect-ratio: 2 / 1;
   border-radius: var(--radius-lg);
   overflow: hidden;
   margin-bottom: 36px;
@@ -1161,6 +1187,17 @@ a {
   display: flex;
   align-items: flex-end;
   padding: 32px;
+  position: relative;
+}
+.article-cover-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.article-cover-photo-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.05) 0%, rgba(15, 23, 42, 0.55) 100%);
 }
 .article-cover-caption {
   color: rgba(255, 255, 255, 0.9);
@@ -1171,8 +1208,18 @@ a {
   padding: 6px 14px;
   border-radius: 6px;
 }
+.article-cover-credit {
+  position: absolute;
+  z-index: 2;
+  right: 16px;
+  bottom: 16px;
+  text-decoration: none;
+}
+.article-cover-credit:hover { background: rgba(15, 23, 42, 0.8); }
 @media (max-width: 768px) {
-  .article-cover { height: 240px; }
+  /* Closer to the source photos' native ~16:9-1.9:1 ratio than 2:1 is, and shorter in
+     absolute terms since the column is much narrower here - saves scroll space too. */
+  .article-cover { aspect-ratio: 16 / 9; }
 }
 
 .takeaways-box {

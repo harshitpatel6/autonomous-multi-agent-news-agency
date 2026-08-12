@@ -17,6 +17,43 @@ REPUTABLE_SOURCES = {
     "Microsoft AI Blog", "AWS ML Blog", "NVIDIA Developer",
 }
 
+# validate_cluster() above only checks dates/sources/URLs on the *editorial brief* -
+# it has no way to catch a generated claim that misattributes wrongdoing to a real,
+# named person or company. That's a distinct risk (defamation exposure, not story
+# quality) and needs the actual generated text checked against the source material,
+# which is what check_defamation_risk() below does.
+DEFAMATION_CHECK_PROMPT = """You are the legal/compliance reviewer for an AI industry news site. Your ONLY \
+job here is to catch content that could expose the publisher to a defamation claim — you are not grading \
+writing quality, style, or factual completeness.
+
+Read the GENERATED CONTENT below and compare every claim it makes about a specific, identifiable person or \
+organization against the SOURCE MATERIAL it was supposed to be built from.
+
+Flag a claim if it:
+- States or implies a named person or organization committed a crime, fraud, deception, or other \
+wrongdoing, or is incompetent, dishonest, or unethical — and the sources do not explicitly say that.
+- Reports an accusation, lawsuit, or investigation as an established fact rather than an allegation, when \
+the sources describe it only as an allegation/claim/lawsuit that hasn't been adjudicated.
+- Attributes a quote, statement, or specific number to a named person/org that doesn't appear in the sources.
+- Makes a negative characterization ("failed", "mismanaged", "covered up", "lied") about a named party \
+beyond what the sources support.
+
+Do NOT flag ordinary, well-sourced reporting (a company announced layoffs, a startup raised funding, a \
+lawsuit was filed and the sources say so, a product shipped with a known bug) — only claims that go beyond, \
+or distort, what the sources actually say.
+
+HEADLINE: {headline}
+
+GENERATED CONTENT:
+{generated_text}
+
+SOURCE MATERIAL (ground truth — the only facts allowed):
+{sources_block}
+
+Respond ONLY with valid JSON, no other text:
+{{"verdict": "PASS" or "FAIL", "flagged": [{{"claim": "...", "reason": "..."}}]}}
+"""
+
 
 class FactCheckerAgent(Agent):
     def __init__(self):
@@ -93,10 +130,53 @@ class FactCheckerAgent(Agent):
         )
         return result
 
+    def check_defamation_risk(self, headline: str, generated_text: str, articles: List[Dict]) -> Dict:
+        """
+        LLM grounding pass run once per cluster, right before it goes live (publish.py) or
+        into an email (digest.py): checks the Writer/Reporter's generated text for claims
+        about named people/orgs (wrongdoing, crime, lawsuits stated as settled fact,
+        fabricated quotes) that the source material doesn't actually support.
+
+        Fails closed: if the LLM can't be reached (providers down/circuit open) or returns
+        something unparseable, this returns FAIL rather than PASS - callers must not publish
+        a story just because the verifier itself was unavailable to check it.
+        """
+        sources_block = "\n".join(
+            f"- [{a.get('source')}] {a.get('title')}\n  {(a.get('summary_raw') or '')[:1500]}"
+            for a in articles
+        ) or "(no source material available)"
+
+        prompt = DEFAMATION_CHECK_PROMPT.format(
+            headline=headline or "", generated_text=(generated_text or "")[:6000],
+            sources_block=sources_block[:6000],
+        )
+        response = self.call_llm(prompt, max_tokens=700, json_mode=True)
+        parsed = self.parse_json(response)
+
+        if parsed and parsed.get("verdict") in ("PASS", "FAIL"):
+            result = {"verdict": parsed["verdict"], "flagged": parsed.get("flagged") or []}
+        else:
+            result = {
+                "verdict": "FAIL",
+                "flagged": [{"claim": "(compliance check unavailable)",
+                             "reason": "verifier LLM unreachable or returned invalid output - failing closed"}],
+            }
+
+        self.logger.log_action(
+            "check_defamation_risk", input_data={"headline": headline},
+            output_data={"verdict": result["verdict"], "flagged_count": len(result["flagged"])},
+            success=result["verdict"] == "PASS",
+        )
+        return result
+
     def handle_message(self, message: Dict) -> Dict:
         payload = message.get("payload", {})
         if message["type"] == "validate_cluster":
             return self.validate_cluster(payload["cluster"], payload.get("articles", []))
+        if message["type"] == "check_defamation_risk":
+            return self.check_defamation_risk(
+                payload.get("headline"), payload.get("generated_text"), payload.get("articles", []),
+            )
         return {"error": f"unknown message type {message['type']}"}
 
 

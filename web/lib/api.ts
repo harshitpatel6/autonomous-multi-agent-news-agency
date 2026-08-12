@@ -53,6 +53,12 @@ export type ArticleSummary = {
   // email digest's sent_at - a story can be published here well before, or without
   // ever being, included in an email.
   published_at: string | null;
+  // Chosen by agents/writer_agent.py from the cluster's source articles (see
+  // utils/fulltext.py) - the original publisher's own image, hotlinked. Null on
+  // stories where no source article had one (ArticleCard falls back to the
+  // generated abstract graphic).
+  image_url: string | null;
+  image_credit: string | null;
 };
 
 export type PipelineRun = {
@@ -91,6 +97,9 @@ export type ArticleDetail = ArticleSummary & {
   seo_title: string | null;
   seo_description: string | null;
   seo_keywords: string | null; // JSON-encoded string[]
+  // Link back to the original article the image/image_credit came from - used for
+  // the "Photo: X" credit link on the article detail page's hero cover.
+  image_credit_url: string | null;
 };
 
 export type SeoRun = {

@@ -31,13 +31,13 @@ no separate cron entry needed (the whole file publishes to the site every 15 min
 already; SEO auditing rides along on the same run).
 """
 import json
-import re
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 from db import get_connection
 from agents.base_agent import Agent
 from agents.message_router import register_agent
+from utils.textclean import strip_html
 
 TITLE_MAX = 60
 DESC_MIN = 70
@@ -336,5 +336,4 @@ def _issue(severity: str, code: str, message: str) -> Dict:
     return {"severity": severity, "code": code, "message": message}
 
 
-def _strip_html(html: str) -> str:
-    return re.sub(r"<[^>]+>", " ", html or "")
+_strip_html = strip_html  # local alias; kept so existing call sites in this file don't change

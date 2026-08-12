@@ -13,6 +13,7 @@ try:
     from agents.qa_agent import qa_agent
     from agents.editor_agent import editor_agent
     from agents.writer_agent import ensure_full_article
+    from agents.fact_checker_agent import fact_checker_agent
     AGENTS_AVAILABLE = True
 except ImportError:
     AGENTS_AVAILABLE = False
@@ -318,6 +319,26 @@ def build_digest_html():
                 return None, []
 
             print(f"✓ QA/Editor backup loop: shipping {len(selected_clusters)} validated stories")
+
+        # Defamation-risk gate: the email goes straight to subscribers' inboxes, so a
+        # hallucinated claim about a named person/company here is at least as much legal
+        # exposure as one on the site (arguably more - it's actively pushed, not just
+        # hosted). Drop anything the grounding check can't clear rather than send it.
+        cleared_clusters = []
+        for cluster in selected_clusters:
+            compliance = fact_checker_agent.check_defamation_risk(
+                cluster.get("headline"), cluster.get("summary"), cluster.get("articles", []),
+            )
+            if compliance.get("verdict") == "PASS":
+                cleared_clusters.append(cluster)
+            else:
+                print(f"  [blocked] cluster {cluster.get('id')} failed defamation-risk check: "
+                      f"{compliance.get('flagged')}")
+        selected_clusters = cleared_clusters
+
+        if not selected_clusters:
+            print("Digest: No valid stories after defamation-risk check.")
+            return None, []
 
         # Writer Agent: expand each selected, already-fact-checked story into a full
         # website article (cached in clusters.full_content so it only runs once per story).

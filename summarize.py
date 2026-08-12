@@ -7,7 +7,6 @@ import json
 import time
 import anthropic
 from groq import Groq
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from config import ANTHROPIC_API_KEY, CLAUDE_MODEL, GROQ_API_KEY, GROQ_MODEL, LLM_PROVIDER, LOOKBACK_HOURS, SUMMARIZE_BATCH_SIZE
 from db import get_connection
@@ -121,33 +120,42 @@ def _summarize_one_cluster(cluster_id):
     return cluster_id, parsed
 
 
-def _summarize_with_reporters(conn, clusters, max_workers=5):
-    """Parallel summarization across beat Reporter Agents (Task 2.4)."""
+def _summarize_with_reporters(conn, clusters):
+    """
+    One cluster at a time across the beat Reporter Agents. Used to run 5 clusters
+    concurrently via ThreadPoolExecutor - faster, but firing 5 LLM requests at once
+    made it easy to burst past a provider's per-minute rate limit, tripping the
+    circuit breaker (agents/base_agent.py) and falling through to backup providers
+    (or, if a batch is big enough, exhausting all three) more often than a paced
+    sequence of calls would. This runs unattended every 15 min via publish.py, so
+    trading some wall-clock time for staying under rate limits in the first place
+    is a clear win - a slower run beats one that trips every provider's breaker.
+    """
     done = failed = 0
-    cluster_ids = [c["id"] for c in clusters]
+    total = len(clusters)
 
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = {pool.submit(_summarize_one_cluster, cid): cid for cid in cluster_ids}
-        for i, future in enumerate(as_completed(futures), 1):
-            cluster_id = futures[future]
-            try:
-                _, parsed = future.result()
-            except Exception as e:
-                parsed = None
-                print(f"  [error] cluster {cluster_id}: {str(e)[:100]}")
+    for i, c in enumerate(clusters, 1):
+        cluster_id = c["id"]
+        try:
+            _, parsed = _summarize_one_cluster(cluster_id)
+        except Exception as e:
+            parsed = None
+            print(f"  [error] cluster {cluster_id}: {str(e)[:100]}")
 
-            if parsed:
-                conn.execute(
-                    "UPDATE clusters SET headline = ?, category = ?, summary = ?, importance_score = ? WHERE id = ?",
-                    (parsed["headline"], parsed["category"], parsed["summary"], parsed["importance_score"], cluster_id),
-                )
-                conn.commit()
-                done += 1
-            else:
-                failed += 1
+        if parsed:
+            conn.execute(
+                "UPDATE clusters SET headline = ?, category = ?, summary = ?, importance_score = ? WHERE id = ?",
+                (parsed["headline"], parsed["category"], parsed["summary"], parsed["importance_score"], cluster_id),
+            )
+            conn.commit()
+            done += 1
+        else:
+            failed += 1
 
-            if i % 10 == 0:
-                print(f"  [{i}/{len(cluster_ids)}] {done} done, {failed} failed")
+        if i % 10 == 0:
+            print(f"  [{i}/{total}] {done} done, {failed} failed")
+
+        time.sleep(RATE_LIMIT_DELAY)
 
     return done, failed
 

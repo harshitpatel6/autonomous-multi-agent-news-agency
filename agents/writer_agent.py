@@ -6,18 +6,40 @@ Only called for stories that already survived Reporter -> Fact-Checker -> Editor
 and only once per cluster (result is cached in clusters.full_content), so this doesn't
 multiply LLM cost across the whole pipeline.
 """
+import difflib
 import json
 from typing import Dict, List, Optional
 
 from db import get_connection
 from utils.fulltext import get_full_text
+from utils.textclean import strip_html
 from agents.base_agent import Agent
 from agents.message_router import register_agent
+
+# Floor below which generated full_content is treated as a failure rather than published.
+# Well under the smallest word_range floor (400 words for minor stories) so it never
+# rejects a legitimately short article - it only catches degenerate output (an empty/near-
+# empty body, or the LLM echoing the one-paragraph editorial brief back as "the article").
+MIN_ARTICLE_WORDS = 120
+
+# Above this SequenceMatcher ratio, full_content's plain text is considered a near-duplicate
+# of the short summary it was built from rather than a genuine expansion of it - exactly the
+# failure mode that caused a real article to render the same paragraph 3 times on the site
+# (deck, "Key Takeaways" fallback, and body all falling back to the same short text).
+SUMMARY_DUPLICATE_RATIO = 0.75
 
 ARTICLE_PROMPT_TEMPLATE = """You are a senior staff writer at a professional AI industry news site \
 (think the editorial quality of TechCrunch or The Information). You've been given an already \
 fact-checked story to write up in full for the website. Do not invent facts, quotes, or numbers that \
 aren't in the sources below — only elaborate on, contextualize, and explain what's actually there.
+
+LEGAL/DEFAMATION RULE — this overrides "add depth" anywhere below: never state or imply that a specific, \
+named person or organization committed a crime, fraud, or other wrongdoing, or is incompetent, dishonest, \
+or unethical, unless the sources say so explicitly and unambiguously. If a source reports an accusation, \
+lawsuit, investigation, or allegation, present it as exactly that — attributed to who is making the claim \
+("X alleges...", "according to the lawsuit...") — never restated as settled fact. If you're not sure a \
+negative characterization of a named party is directly supported, cut it rather than include it; a shorter, \
+duller sentence is always the safer choice than a punchier one you can't ground in the sources.
 
 HEADLINE: {headline}
 CATEGORY: {category}
@@ -86,7 +108,7 @@ class WriterAgent(Agent):
     def _build_sources_block(articles: List[Dict]) -> str:
         lines = []
         for a in articles:
-            full_text = get_full_text(a["id"], a.get("url")) if a.get("id") else ""
+            full_text = get_full_text(a["id"], a.get("url"), a.get("source")) if a.get("id") else ""
             if full_text:
                 lines.append(f"- [{a['source']}] {a['title']} (FULL TEXT)\n  {full_text[:3000]}")
             else:
@@ -109,6 +131,38 @@ class WriterAgent(Agent):
             return "700-900"
         return "400-600"
 
+    @staticmethod
+    def _quality_reason(parsed: Optional[Dict], summary: str) -> Optional[str]:
+        """
+        Returns None if the parsed Writer output is a genuine full article, or a short
+        reason string if it's degenerate and should be treated as a failure rather than
+        published. Layered on top of the existing "did the LLM return JSON at all" check,
+        since a technically-successful call can still return output that's too thin, missing
+        the mandated section structure, or just the short summary echoed back - none of which
+        parse_json() alone can catch, and all of which produce the same broken page (the
+        short summary rendered 3 times: deck, "Key Takeaways" fallback, and body).
+        """
+        if not parsed or not parsed.get("full_content"):
+            return "no full_content in response"
+
+        body_text = strip_html(parsed["full_content"]).split()
+        if len(body_text) < MIN_ARTICLE_WORDS:
+            return f"full_content too short ({len(body_text)} words < {MIN_ARTICLE_WORDS})"
+
+        if "<h3" not in parsed["full_content"]:
+            return "full_content missing the mandated <h3> section structure"
+
+        if len(parsed.get("key_takeaways") or []) < 3:
+            return "fewer than 3 key_takeaways"
+
+        if summary:
+            body_plain = strip_html(parsed["full_content"]).strip().lower()
+            ratio = difflib.SequenceMatcher(None, body_plain, summary.strip().lower()).ratio()
+            if ratio >= SUMMARY_DUPLICATE_RATIO:
+                return f"full_content is a near-duplicate of the summary (similarity {ratio:.2f})"
+
+        return None
+
     def write_full_article(
         self, headline: str, category: str, summary: str, articles: List[Dict],
         importance_score: Optional[int] = None,
@@ -125,7 +179,8 @@ class WriterAgent(Agent):
         )
         response = self.call_llm(prompt, max_tokens=2200, json_mode=True)
         parsed = self.parse_json(response)
-        success = bool(parsed and parsed.get("full_content"))
+        fail_reason = self._quality_reason(parsed, summary)
+        success = fail_reason is None
         self.logger.log_action(
             "write_full_article", input_data={"headline": headline},
             output_data={
@@ -133,6 +188,7 @@ class WriterAgent(Agent):
                 "takeaways": len(parsed.get("key_takeaways") or []),
             } if success else None,
             success=success,
+            error_message=fail_reason,
         )
         if not success:
             return None
@@ -157,7 +213,91 @@ writer_agent = WriterAgent()
 register_agent("writer", writer_agent.handle_message)
 
 
-def ensure_full_article(cluster: Dict) -> None:
+def _pick_cluster_image(cluster_id: int) -> Optional[Dict]:
+    """
+    The lead image for a cluster's card/hero: the first available image among its
+    source articles (populated by ingest.py from the RSS entry, or by
+    utils/fulltext.py's og:image scrape - normally already run as a side effect of the
+    get_full_text() calls in _build_sources_block, by the time this is called from
+    ensure_full_article() below). image_credit/image_credit_url identify the original
+    publisher, since we hotlink rather than re-host the image.
+
+    If no source article has a cached image yet, makes one on-demand scrape attempt
+    per article before giving up, instead of assuming get_full_text() must already have
+    run. That assumption doesn't always hold - backfill_missing_images() below calls
+    this for already-published clusters independently of full_content status, precisely
+    to cover the case where get_full_text() never ran for them (e.g. the Writer call
+    failed before ever reaching that step, back when the cluster was first published).
+    """
+    conn = get_connection()
+    row = conn.execute(
+        """SELECT source, url, image_url FROM articles
+           WHERE cluster_id = ? AND image_url IS NOT NULL AND image_url != ''
+           LIMIT 1""",
+        (cluster_id,),
+    ).fetchone()
+    if row:
+        conn.close()
+        return {"image_url": row["image_url"], "image_credit": row["source"], "image_credit_url": row["url"]}
+
+    articles = conn.execute(
+        "SELECT id, source, url FROM articles WHERE cluster_id = ?", (cluster_id,)
+    ).fetchall()
+    conn.close()
+    for a in articles:
+        if a["url"]:
+            get_full_text(a["id"], a["url"], a["source"])  # side effect: caches image_url too
+
+    conn = get_connection()
+    row = conn.execute(
+        """SELECT source, url, image_url FROM articles
+           WHERE cluster_id = ? AND image_url IS NOT NULL AND image_url != ''
+           LIMIT 1""",
+        (cluster_id,),
+    ).fetchone()
+    conn.close()
+    if not row:
+        return None
+    return {"image_url": row["image_url"], "image_credit": row["source"], "image_credit_url": row["url"]}
+
+
+def backfill_missing_images(limit: int = 15) -> int:
+    """
+    Already-published clusters with no lead image, independent of full_content status.
+    Fetching/attaching an image is cheap (an HTTP fetch + meta-tag parse, no LLM call)
+    and shouldn't be gated behind full_content ever being (re)generated - but
+    ensure_full_article() below only ever calls _pick_cluster_image() once, at the
+    moment full_content is first written, and its early-return means a cluster that
+    already has full_content never gets revisited even if none of its articles had a
+    cached image back then. Run alongside retry_missing_full_content() (publish.py)
+    so a story doesn't show the gradient placeholder forever just because its one
+    shot at an image happened before any of its sources had one cached.
+    """
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT id FROM clusters
+        WHERE published_at IS NOT NULL AND (image_url IS NULL OR image_url = '')
+        ORDER BY published_at DESC LIMIT ?
+    """, (limit,)).fetchall()
+    conn.close()
+
+    filled = 0
+    for row in rows:
+        image = _pick_cluster_image(row["id"])
+        if not image:
+            continue
+        conn = get_connection()
+        conn.execute(
+            "UPDATE clusters SET image_url = ?, image_credit = ?, image_credit_url = ? WHERE id = ?",
+            (image["image_url"], image["image_credit"], image["image_credit_url"], row["id"]),
+        )
+        conn.commit()
+        conn.close()
+        filled += 1
+    return filled
+
+
+def ensure_full_article(cluster: Dict) -> bool:
     """
     Generate + cache a full website article (body + key takeaways) for a cluster, if it
     doesn't have both yet. Shared by digest.py (email pipeline) and publish.py (site
@@ -167,6 +307,11 @@ def ensure_full_article(cluster: Dict) -> None:
     published before key_takeaways existed get picked back up here (and by publish.py's
     retry_missing_full_content) and re-run through the Writer Agent, which regenerates the
     whole article in one LLM call - a one-time cost per pre-existing article.
+
+    Returns True if the cluster has (or now has) both columns populated, False if generation
+    failed - callers that gate publishing on this (publish.py) must not go live on False, or
+    the site renders the raw summary three times over instead of a real article (deck, "Key
+    Takeaways" fallback, and body all fall back to the same short summary independently).
     """
     conn = get_connection()
     row = conn.execute(
@@ -174,7 +319,7 @@ def ensure_full_article(cluster: Dict) -> None:
     ).fetchone()
     if row and row["full_content"] and row["key_takeaways"]:
         conn.close()
-        return
+        return True
 
     source_articles = conn.execute(
         "SELECT id, source, title, url, summary_raw FROM articles WHERE cluster_id = ?",
@@ -183,7 +328,7 @@ def ensure_full_article(cluster: Dict) -> None:
     conn.close()
 
     if not source_articles:
-        return
+        return False
 
     try:
         result = writer_agent.write_full_article(
@@ -194,11 +339,26 @@ def ensure_full_article(cluster: Dict) -> None:
         print(f"  [error] Writer Agent failed for cluster {cluster['id']}: {str(e)[:100]}")
         result = None
 
-    if result:
-        conn = get_connection()
+    if not result:
+        return False
+
+    image = _pick_cluster_image(cluster["id"])
+    conn = get_connection()
+    if image:
+        conn.execute(
+            """UPDATE clusters SET full_content = ?, key_takeaways = ?,
+               image_url = ?, image_credit = ?, image_credit_url = ? WHERE id = ?""",
+            (
+                result["full_content"], json.dumps(result["key_takeaways"]),
+                image["image_url"], image["image_credit"], image["image_credit_url"],
+                cluster["id"],
+            ),
+        )
+    else:
         conn.execute(
             "UPDATE clusters SET full_content = ?, key_takeaways = ? WHERE id = ?",
             (result["full_content"], json.dumps(result["key_takeaways"]), cluster["id"]),
         )
-        conn.commit()
-        conn.close()
+    conn.commit()
+    conn.close()
+    return True

@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/dashboard", label: "Overview", icon: "📊" },
   { href: "/seo", label: "SEO", icon: "🔍" },
   { href: "/history", label: "Article History", icon: "🗂️" },
+  { href: "/processing-history", label: "Processing History", icon: "🧾" },
   { href: "/agents", label: "Agent Performance", icon: "🤖" },
   { href: "/digests", label: "Recent Digests", icon: "📬" },
   { href: "/ceo", label: "CEO Chat (ALEX)", icon: "💬" },

@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS articles (
     url TEXT NOT NULL UNIQUE,
     summary_raw TEXT,
     full_text TEXT,
+    image_url TEXT,
     published_at TEXT,
     fetched_at TEXT NOT NULL,
     cluster_id INTEGER,
@@ -40,7 +41,14 @@ CREATE TABLE IF NOT EXISTS clusters (
     seo_description TEXT,
     seo_keywords TEXT,
     seo_score REAL,
-    seo_audited_at TEXT
+    seo_audited_at TEXT,
+    -- Lead image for the site card/hero, chosen at publish time (agents/writer_agent.py)
+    -- from whichever of this cluster's source articles has one (see utils/fulltext.py).
+    -- image_credit/image_credit_url identify the original publisher for the "Photo: X"
+    -- caption - we hotlink rather than re-host, so attribution matters.
+    image_url TEXT,
+    image_credit TEXT,
+    image_credit_url TEXT
 );
 
 CREATE TABLE IF NOT EXISTS digests (

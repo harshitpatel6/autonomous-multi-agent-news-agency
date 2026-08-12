@@ -65,18 +65,60 @@ def migrate_clusters_table(conn):
 
 
 def migrate_articles_table(conn):
-    """Add full_text column to articles table (cached full-article-body fetch, see utils/fulltext.py)"""
+    """Add full_text/image_url columns to articles table (see utils/fulltext.py)"""
     print("Migrating articles table...")
 
     existing_columns = get_column_names(conn, 'articles')
-    if 'full_text' in existing_columns:
-        print("  - Column already exists: full_text")
-        return 0
+    columns_to_add = {
+        'full_text': 'TEXT',
+        'image_url': 'TEXT',
+    }
 
-    conn.execute("ALTER TABLE articles ADD COLUMN full_text TEXT")
-    conn.commit()
-    print("  ✓ Added column: full_text")
-    return 1
+    added_count = 0
+    for column_name, column_type in columns_to_add.items():
+        if column_name not in existing_columns:
+            conn.execute(f"ALTER TABLE articles ADD COLUMN {column_name} {column_type}")
+            print(f"  ✓ Added column: {column_name}")
+            added_count += 1
+        else:
+            print(f"  - Column already exists: {column_name}")
+
+    if added_count > 0:
+        conn.commit()
+    return added_count
+
+
+def migrate_image_columns(conn):
+    """Add lead-image columns to clusters table (agents/writer_agent.py picks these at
+    publish time from the cluster's source articles - see utils/fulltext.py)."""
+    print("Migrating clusters table for images...")
+
+    existing_columns = get_column_names(conn, 'clusters')
+    columns_to_add = {
+        'image_url': 'TEXT',
+        'image_credit': 'TEXT',
+        'image_credit_url': 'TEXT',
+    }
+
+    added_count = 0
+    for column_name, column_type in columns_to_add.items():
+        if column_name not in existing_columns:
+            try:
+                conn.execute(f"ALTER TABLE clusters ADD COLUMN {column_name} {column_type}")
+                print(f"  ✓ Added column: {column_name}")
+                added_count += 1
+            except sqlite3.OperationalError as e:
+                print(f"  ✗ Error adding {column_name}: {e}")
+        else:
+            print(f"  - Column already exists: {column_name}")
+
+    if added_count > 0:
+        conn.commit()
+        print(f"Added {added_count} new image columns to clusters table")
+    else:
+        print("No new image columns needed for clusters table")
+
+    return added_count
 
 
 def migrate_seo_columns(conn):
@@ -373,6 +415,7 @@ def main():
         logs_created = create_agent_logs_table(conn)
         seo_columns_added = migrate_seo_columns(conn)
         seo_tables_created = create_seo_tables(conn)
+        image_columns_added = migrate_image_columns(conn)
         indexes_created = create_indexes(conn)
         
         # Verify migration
@@ -389,6 +432,7 @@ def main():
         print(f"Agent logs table created: {'Yes' if logs_created else 'Already exists'}")
         print(f"SEO columns added to clusters: {seo_columns_added}")
         print(f"SEO tables created: {seo_tables_created}")
+        print(f"Image columns added to clusters: {image_columns_added}")
         print(f"Indexes created: {indexes_created}")
         if backup_path:
             print(f"Backup saved to: {backup_path}")

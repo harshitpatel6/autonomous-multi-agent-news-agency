@@ -110,7 +110,8 @@ def list_articles(limit: int = 30, offset: int = 0, category: Optional[str] = No
     admin history tab) without changing the default behavior for existing callers.
     """
     conn = get_connection()
-    query = """SELECT id, headline, category, summary, importance_score, published_at
+    query = """SELECT id, headline, category, summary, importance_score, published_at,
+                      image_url, image_credit
                FROM clusters WHERE published_at IS NOT NULL"""
     params: list = []
     if category:
@@ -170,7 +171,8 @@ def get_article(article_id: int):
     conn = get_connection()
     cluster = conn.execute(
         """SELECT id, headline, category, summary, full_content, key_takeaways, importance_score,
-                  published_at, seo_title, seo_description, seo_keywords
+                  published_at, seo_title, seo_description, seo_keywords,
+                  image_url, image_credit, image_credit_url
            FROM clusters WHERE id = ? AND published_at IS NOT NULL""",
         (article_id,),
     ).fetchone()
@@ -184,7 +186,7 @@ def get_article(article_id: int):
     ).fetchall()
 
     related = conn.execute(
-        """SELECT id, headline, category, published_at FROM clusters
+        """SELECT id, headline, category, published_at, image_url, image_credit FROM clusters
            WHERE category = ? AND id != ? AND published_at IS NOT NULL
            ORDER BY published_at DESC LIMIT 4""",
         (cluster["category"], article_id),

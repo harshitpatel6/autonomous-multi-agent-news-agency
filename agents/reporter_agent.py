@@ -15,6 +15,11 @@ the same underlying story, from different sources. Sources marked (FULL TEXT) ar
 sources marked (TEASER ONLY) are just a short RSS blurb, so lean on the FULL TEXT sources for specifics \
 when both are present.
 
+LEGAL/DEFAMATION RULE: never state or imply that a specific, named person or organization committed a \
+crime, fraud, or other wrongdoing, or is incompetent, dishonest, or unethical, unless the sources say so \
+explicitly. Report accusations, lawsuits, or investigations as exactly that — attributed to whoever is \
+making the claim — never as settled fact. When unsure, omit the characterization rather than risk it.
+
 {beat_focus}
 
 Sources:
@@ -69,7 +74,7 @@ class ReporterAgent(Agent):
     def _build_sources_block(articles: List[Dict]) -> str:
         lines = []
         for a in articles:
-            full_text = get_full_text(a["id"], a.get("url")) if a.get("id") else ""
+            full_text = get_full_text(a["id"], a.get("url"), a.get("source")) if a.get("id") else ""
             if full_text:
                 lines.append(f"- [{a['source']}] {a['title']} (FULL TEXT)\n  {full_text[:2000]}")
             else:

@@ -23,7 +23,7 @@ from agents.message_router import router
 from agents import qa_agent as _qa_module          # noqa: F401  (registers with router)
 from agents import fact_checker_agent as _fc_module  # noqa: F401
 from agents.qa_agent import qa_agent
-from agents.writer_agent import ensure_full_article
+from agents.writer_agent import ensure_full_article, backfill_missing_images
 from agents.seo_agent import seo_agent
 
 # Cap on how many already-published-but-missing-full_content articles to retry per
@@ -75,7 +75,36 @@ def publish_ready_clusters(clusters):
         if not qa_result["valid_clusters"]:
             continue
 
-        ensure_full_article(cluster)
+        if not ensure_full_article(cluster):
+            # Writer Agent failed (LLM providers down/rate-limited/etc.) - leave
+            # published_at unset so this stays a publish candidate and gets retried
+            # on the next run, instead of going live with no full_content (which
+            # renders as the same short summary repeated 3x on the article page).
+            continue
+
+        conn = get_connection()
+        row = conn.execute(
+            "SELECT full_content, key_takeaways FROM clusters WHERE id = ?", (cluster["id"],)
+        ).fetchone()
+        conn.close()
+        generated_text = (row["full_content"] or "") if row else ""
+        if row and row["key_takeaways"]:
+            try:
+                generated_text += "\n" + "\n".join(json.loads(row["key_takeaways"]))
+            except (TypeError, ValueError):
+                pass
+
+        compliance = router.send(
+            "publish_job", "fact_checker", "check_defamation_risk",
+            {"headline": cluster.get("headline"), "generated_text": generated_text, "articles": cluster["articles"]},
+        )
+        if not compliance or compliance.get("verdict") != "PASS":
+            # Fail closed: don't publish a story the compliance check couldn't clear.
+            # Left unpublished (not deleted) so a human can review flagged claims via
+            # agent_logs and, if it's a false positive, republish it manually.
+            print(f"  [blocked] cluster {cluster['id']} failed defamation-risk check: "
+                  f"{(compliance or {}).get('flagged')}")
+            continue
 
         conn = get_connection()
         conn.execute(
@@ -166,6 +195,10 @@ def run():
     retried = retry_missing_full_content()
     if retried:
         print(f"♻️  Retried full-article generation for {retried} previously-published stories")
+
+    backfilled = backfill_missing_images()
+    if backfilled:
+        print(f"🖼️  Backfilled lead images for {backfilled} previously-published stories")
 
     # SEO Agent: audits new articles first, then the most stale re-audits, every
     # run - fully autonomous, no manual trigger needed (see agents/seo_agent.py).
