@@ -1,6 +1,6 @@
 # Autonomous AI News Agency
 
-A self-running multi-agent system that ingests AI news from ~35 RSS feeds, clusters
+A self-running multi-agent system that ingests AI news from Sources, clusters
 duplicate coverage, has specialized AI agents write and validate each story, and emails
 a daily digest — with zero human intervention and zero duplicate sends across runs.
 
@@ -10,7 +10,7 @@ a daily digest — with zero human intervention and zero duplicate sends across 
 
 ```mermaid
 flowchart TD
-    RSS[("📡 ~Sources")] --> ING["ingest.py<br/>fetch & normalize"]
+    RSS[("📡 Sources")] --> ING["ingest.py<br/>fetch & normalize"]
 
     subgraph PIPELINE["Ingestion & Curation — main.py"]
         direction TB
