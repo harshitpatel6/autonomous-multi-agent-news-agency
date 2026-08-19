@@ -24,3 +24,7 @@ digest_test_*.html
 
 # OS
 .DS_Store
+
+# Local tooling
+.claude/
+.kiro/
