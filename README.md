@@ -148,6 +148,5 @@ python3 ceo_cli.py metrics             # raw performance/health numbers
 
 - [agents/README.md](agents/README.md) — agent responsibilities & message protocol
 - [DEPLOYMENT.md](DEPLOYMENT.md) — environment variables, migration, deploy steps
-- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) — common issues & recovery procedures
 - [web/README.md](web/README.md) — dashboard run/deploy steps
 - `.kiro/specs/autonomous-ai-news-agency/tasks.md` — implementation task list
