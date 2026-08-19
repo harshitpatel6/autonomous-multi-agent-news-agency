@@ -152,3 +152,8 @@ python3 ceo_cli.py metrics             # raw performance/health numbers
 - [DEPLOYMENT.md](DEPLOYMENT.md) — environment variables, migration, deploy steps
 - [web/README.md](web/README.md) — dashboard run/deploy steps
 - `.kiro/specs/autonomous-ai-news-agency/tasks.md` — implementation task list
+
+- <img width="1710" height="1032" alt="Screenshot 2026-08-19 at 10 01 39 PM" src="https://github.com/user-attachments/assets/245012c8-745d-4619-8f5e-0d8e5a216940" />
+
+<img width="1706" height="743" alt="Screenshot 2026-08-19 at 10 01 12 PM" src="https://github.com/user-attachments/assets/90513756-19b1-4ee4-bc32-5e87de021ee2" />
+
