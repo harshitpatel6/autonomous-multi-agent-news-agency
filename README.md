@@ -10,7 +10,7 @@ a daily digest — with zero human intervention and zero duplicate sends across 
 
 ```mermaid
 flowchart TD
-    RSS[("📡 ~35 RSS Feeds")] --> ING["ingest.py<br/>fetch & normalize"]
+    RSS[("📡 ~Sources")] --> ING["ingest.py<br/>fetch & normalize"]
 
     subgraph PIPELINE["Ingestion & Curation — main.py"]
         direction TB
