@@ -4,6 +4,8 @@ A self-running multi-agent system that ingests AI news from Sources, clusters
 duplicate coverage, has specialized AI agents write and validate each story, and emails
 a daily digest — with zero human intervention and zero duplicate sends across runs.
 
+Personal side project — a self-running multi-agent AI pipeline that reads public RSS feeds and emails a daily AI-news digest. Not affiliated with any publisher; links back to original sources, no full-article reproduction.
+
 ## Architecture
 
 ### Pipeline & platform flow
