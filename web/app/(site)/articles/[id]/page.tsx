@@ -110,8 +110,29 @@ export default async function ArticleDetailPage({ params }: Props) {
                 </span>
               </div>
             </div>
-            <div className="byline-pill">
-              ⏱ {readTime(article.full_content, article.summary)}
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {/* agents/fact_checker_agent.py treats single-source stories differently
+                  internally (capped at "review", never auto-published on score alone) -
+                  surfaced here so the reader can see that distinction too, not just the
+                  pipeline. See is_single_source on GET /api/articles/{id}. */}
+              <div
+                className="byline-pill"
+                style={
+                  article.is_single_source
+                    ? { background: "var(--surface-alt)", color: "var(--text-secondary)" }
+                    : { background: "var(--accent-soft)", color: "var(--accent)" }
+                }
+                title={
+                  article.is_single_source
+                    ? "Reported from a single source, with no independent outlet to corroborate it"
+                    : "Corroborated across multiple independent sources"
+                }
+              >
+                {article.is_single_source ? "◐ Single-Source" : "✓ Cross-Verified"}
+              </div>
+              <div className="byline-pill">
+                ⏱ {readTime(article.full_content, article.summary)}
+              </div>
             </div>
           </div>
         </header>
@@ -182,7 +203,15 @@ export default async function ArticleDetailPage({ params }: Props) {
             {/* SOURCES & REFERENCES CARD */}
             {article.sources.length > 0 && (
               <div className="sources-card">
-                <div className="sources-title">Originally Reported & Verified By</div>
+                <div className="sources-title">
+                  {article.is_single_source ? "Based On Reporting By" : "Originally Reported & Verified By"}
+                </div>
+                {article.is_single_source && (
+                  <p style={{ color: "var(--text-secondary)", fontSize: 13.5, margin: "0 0 12px 0", lineHeight: 1.5 }}>
+                    This story comes from a single source below, with our own analysis added — read their
+                    original reporting for the full picture.
+                  </p>
+                )}
                 <ul className="sources-list">
                   {article.sources.map((s, i) => (
                     <li key={i}>

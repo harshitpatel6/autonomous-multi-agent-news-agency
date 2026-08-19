@@ -51,9 +51,18 @@ say, and never write a sentence announcing that a detail is missing ("specific d
 ("game-changing", "revolutionary"), no filler ("in conclusion", "it remains to be seen").
 4. Score how important this story is for someone who builds with AI day to day, from 1 (minor/noise) to 10 \
 (major development). Consider novelty and practical impact, not just how many outlets covered it.
+5. Classify the CONTENT TYPE of the source material itself - this drives how the Writer Agent expands it \
+later, so get it right:
+   - "news" — an event: a launch, release, funding round, partnership, policy action, paper, or benchmark. \
+The story is that something happened.
+   - "tutorial_or_reference" — a how-to, walkthrough, guide, listicle, tips roundup, tool/framework \
+comparison, or "N things to try" piece. The story IS the specific steps/items/structure the source laid \
+out — there's no separate "event," the source's own arrangement of detail is the whole point.
+   If unsure, prefer "news" — it's the safer default when a piece has both a news hook and some explanatory detail.
 
 Respond ONLY with valid JSON, no other text:
-{{"headline": "...", "category": "...", "summary": "...", "importance_score": N}}
+{{"headline": "...", "category": "...", "summary": "...", "importance_score": N, \
+"content_type": "news" or "tutorial_or_reference"}}
 """
 
 
@@ -105,6 +114,12 @@ class ReporterAgent(Agent):
             parsed["importance_score"] = int(parsed["importance_score"])
         except (TypeError, ValueError):
             parsed["importance_score"] = 5
+        # "news" is the safer default (see prompt) if the model omits the field or
+        # returns something we don't recognize - the Writer's tutorial-mode prompt
+        # relaxes the "extract every detail" instruction, which should only kick in
+        # on an explicit tutorial_or_reference classification, not by accident.
+        if parsed.get("content_type") not in ("news", "tutorial_or_reference"):
+            parsed["content_type"] = "news"
         return parsed
 
     def handle_message(self, message: Dict) -> Dict:

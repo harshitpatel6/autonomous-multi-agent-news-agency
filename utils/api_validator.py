@@ -1,249 +1,165 @@
 """
 API Key Validation & Health Checks
 
-Validates Anthropic and Groq API keys on startup.
-Detects placeholder/invalid keys and provides clear error messages.
-Implements fallback strategy: proceed with available keys or fail fast.
+Validates the Gemini API key on startup - Gemini is the only LLM provider the
+pipeline actually calls (see agents/base_agent.py: ALL_PROVIDERS = ("gemini",)).
+Anthropic and Groq are checked too, but purely informationally: this codebase used
+to fall back between Claude/Groq/Gemini, but every LLM call today goes through
+agents/base_agent.py's Gemini-only client. An invalid/placeholder Anthropic or Groq
+key is expected and harmless - it must never block startup. (It used to: this
+gate raised RuntimeError whenever Anthropic AND Groq were both invalid, even when
+Gemini - the key actually paying for and running every request - was perfectly
+valid. That silently aborted the whole pipeline, before it ingested a single feed,
+on any night either of those two unused keys happened to fail their live test call.)
 """
 import os
 from typing import Tuple, Optional
 
 
-def validate_anthropic_key() -> Tuple[bool, Optional[str]]:
+def validate_gemini_key() -> Tuple[bool, Optional[str]]:
     """
-    Validate Anthropic API key.
-    
+    Validate the Gemini API key - the provider the pipeline actually uses.
+
     Returns:
         Tuple[bool, Optional[str]]: (is_valid, error_message)
-        - (True, None) if key is valid
-        - (False, error_message) if key is invalid or test fails
     """
+    api_key = os.getenv("GEMINI_API_KEY")
+
+    if not api_key:
+        return False, "GEMINI_API_KEY environment variable is not set"
+
+    placeholder_patterns = ["your_key_here", "placeholder", "xxx", "YOUR_ACTUAL_KEY"]
+    if any(pattern.lower() in api_key.lower() for pattern in placeholder_patterns):
+        return False, f"Gemini API key appears to be a placeholder: {api_key[:12]}..."
+
+    # Make a minimal live test call so a revoked/expired key is caught here with a
+    # clear message, instead of surfacing 90 times as "call_llm[gemini] — FAILED"
+    # deep in summarize_clusters().
+    try:
+        from google import genai
+        from config import GEMINI_MODEL
+
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(model=GEMINI_MODEL, contents="test")
+
+        if not response:
+            return False, "Gemini API test call returned no response"
+        return True, None
+
+    except Exception as e:
+        error_str = str(e).lower()
+        if "rate limit" in error_str or "429" in error_str or "quota" in error_str:
+            # Valid key, temporarily throttled - still fine to proceed, the pipeline's
+            # own circuit breaker (utils/error_handling.py) handles cooldowns per-call.
+            return True, f"Warning: Gemini API rate limited (key is valid): {e}"
+        if "401" in error_str or "403" in error_str or "authentication" in error_str or "api key" in error_str:
+            return False, f"Gemini API authentication failed: {e}"
+        return False, f"Gemini API test failed: {e}"
+
+
+def validate_anthropic_key() -> Tuple[bool, Optional[str]]:
+    """Informational only - Anthropic is not called by the pipeline anymore."""
     api_key = os.getenv("ANTHROPIC_API_KEY")
-    
-    # Check if key exists
+
     if not api_key:
         return False, "ANTHROPIC_API_KEY environment variable is not set"
-    
-    # Check for placeholder keys
-    placeholder_patterns = [
-        "sk_ant_YOUR_ACTUAL_KEY_HERE",
-        "your_key_here",
-        "placeholder",
-        "xxx",
-    ]
-    
+
+    placeholder_patterns = ["sk_ant_YOUR_ACTUAL_KEY_HERE", "your_key_here", "placeholder", "xxx"]
     if any(pattern.lower() in api_key.lower() for pattern in placeholder_patterns):
         return False, f"Anthropic API key appears to be a placeholder: {api_key[:20]}..."
-    
-    # Check key format (Anthropic keys start with sk-ant-)
+
     if not api_key.startswith("sk-ant-"):
-        return False, f"Anthropic API key has invalid format (should start with 'sk-ant-')"
-    
-    # Make test API call
-    try:
-        import anthropic
-        
-        client = anthropic.Anthropic(api_key=api_key)
-        # Minimal test call with very low token count
-        response = client.messages.create(
-            model="claude-3-5-sonnet-20241022",
-            max_tokens=10,
-            messages=[{"role": "user", "content": "test"}]
-        )
-        
-        # If we got here, the key works
-        return True, None
-        
-    except anthropic.AuthenticationError as e:
-        return False, f"Anthropic API authentication failed: {str(e)}"
-    except anthropic.PermissionDeniedError as e:
-        return False, f"Anthropic API permission denied: {str(e)}"
-    except anthropic.RateLimitError as e:
-        # Rate limit means the key is valid but temporarily unavailable
-        return True, f"Warning: Anthropic API rate limited (key is valid): {str(e)}"
-    except Exception as e:
-        return False, f"Anthropic API test failed: {str(e)}"
+        return False, "Anthropic API key has invalid format (should start with 'sk-ant-')"
+
+    return True, None
 
 
 def validate_groq_key() -> Tuple[bool, Optional[str]]:
-    """
-    Validate Groq API key.
-    
-    Returns:
-        Tuple[bool, Optional[str]]: (is_valid, error_message)
-        - (True, None) if key is valid
-        - (False, error_message) if key is invalid or test fails
-    """
+    """Informational only - Groq is not called by the pipeline anymore."""
     api_key = os.getenv("GROQ_API_KEY")
-    
-    # Check if key exists
+
     if not api_key:
         return False, "GROQ_API_KEY environment variable is not set"
-    
-    # Check for placeholder keys
-    placeholder_patterns = [
-        "your_key_here",
-        "placeholder",
-        "xxx",
-    ]
-    
+
+    placeholder_patterns = ["your_key_here", "placeholder", "xxx"]
     if any(pattern.lower() in api_key.lower() for pattern in placeholder_patterns):
         return False, f"Groq API key appears to be a placeholder: {api_key[:20]}..."
-    
-    # Check key format (Groq keys start with gsk_)
+
     if not api_key.startswith("gsk_"):
-        return False, f"Groq API key has invalid format (should start with 'gsk_')"
-    
-    # Make test API call
-    try:
-        from groq import Groq
-        
-        client = Groq(api_key=api_key)
-        # Minimal test call with very low token count
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": "test"}],
-            max_tokens=10
-        )
-        
-        # If we got here, the key works
-        return True, None
-        
-    except Exception as e:
-        error_str = str(e).lower()
-        
-        # Check for authentication errors
-        if "authentication" in error_str or "api key" in error_str or "401" in error_str:
-            return False, f"Groq API authentication failed: {str(e)}"
-        
-        # Check for rate limit (means key is valid but temporarily unavailable)
-        if "rate limit" in error_str or "429" in error_str:
-            return True, f"Warning: Groq API rate limited (key is valid): {str(e)}"
-        
-        # Other errors
-        return False, f"Groq API test failed: {str(e)}"
+        return False, "Groq API key has invalid format (should start with 'gsk_')"
+
+    return True, None
 
 
 def validate_api_keys_on_startup() -> dict:
     """
-    Validate all API keys on startup and provide clear feedback.
-    
+    Validate API keys on startup. Gemini is required - it's the only provider the
+    pipeline calls. Anthropic/Groq are reported for visibility only and never block
+    a run.
+
     Returns:
-        dict: Validation results with status for each provider
-        {
-            "anthropic": {"valid": bool, "error": str or None},
-            "groq": {"valid": bool, "error": str or None},
-            "has_valid_key": bool,
-            "can_proceed": bool
-        }
-    
+        dict: {"gemini": {...}, "anthropic": {...}, "groq": {...}, "can_proceed": bool}
+
     Raises:
-        RuntimeError: If no valid API keys are available
+        RuntimeError: only if Gemini itself is missing/invalid.
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("🔐 API KEY VALIDATION")
-    print("="*70)
-    
+    print("=" * 70)
+
     results = {
+        "gemini": {"valid": False, "error": None},
         "anthropic": {"valid": False, "error": None},
         "groq": {"valid": False, "error": None},
-        "has_valid_key": False,
-        "can_proceed": False
+        "can_proceed": False,
     }
-    
-    # Validate Anthropic
-    print("\n[1/2] Validating Anthropic (Claude) API key...")
+
+    print("\n[1/3] Validating Gemini API key (required - the only provider in use)...")
+    gemini_valid, gemini_error = validate_gemini_key()
+    results["gemini"] = {"valid": gemini_valid, "error": gemini_error}
+    print(f"  ✅ Gemini API key is VALID" if gemini_valid else f"  ❌ Gemini API key FAILED: {gemini_error}")
+
+    print("\n[2/3] Checking Anthropic key (informational - not used by the pipeline)...")
     anthropic_valid, anthropic_error = validate_anthropic_key()
-    results["anthropic"]["valid"] = anthropic_valid
-    results["anthropic"]["error"] = anthropic_error
-    
-    if anthropic_valid:
-        print("  ✅ Anthropic API key is VALID")
-    else:
-        print(f"  ❌ Anthropic API key FAILED: {anthropic_error}")
-    
-    # Validate Groq
-    print("\n[2/2] Validating Groq API key...")
+    results["anthropic"] = {"valid": anthropic_valid, "error": anthropic_error}
+    print(f"  ✅ present" if anthropic_valid else f"  ⚪ {anthropic_error} (fine - unused)")
+
+    print("\n[3/3] Checking Groq key (informational - not used by the pipeline)...")
     groq_valid, groq_error = validate_groq_key()
-    results["groq"]["valid"] = groq_valid
-    results["groq"]["error"] = groq_error
-    
-    if groq_valid:
-        print("  ✅ Groq API key is VALID")
-    else:
-        print(f"  ❌ Groq API key FAILED: {groq_error}")
-    
-    # Determine if we can proceed
-    print("\n" + "-"*70)
+    results["groq"] = {"valid": groq_valid, "error": groq_error}
+    print(f"  ✅ present" if groq_valid else f"  ⚪ {groq_error} (fine - unused)")
+
+    print("\n" + "-" * 70)
     print("📊 VALIDATION SUMMARY")
-    print("-"*70)
-    
-    results["has_valid_key"] = anthropic_valid or groq_valid
-    
-    if anthropic_valid and groq_valid:
-        print("✅ Both API keys are valid")
-        print("   Primary: Claude (Anthropic)")
-        print("   Fallback: Groq")
+    print("-" * 70)
+
+    if gemini_valid:
+        print("✅ Gemini API key is valid - pipeline can proceed")
         results["can_proceed"] = True
-        
-    elif anthropic_valid and not groq_valid:
-        print("⚠️  Only Claude (Anthropic) API key is valid")
-        print("   System will use Claude only (no Groq fallback)")
-        print(f"   Groq error: {groq_error}")
-        results["can_proceed"] = True
-        
-    elif groq_valid and not anthropic_valid:
-        print("⚠️  Only Groq API key is valid")
-        print("   System will use Groq only (no Claude fallback)")
-        print(f"   Claude error: {anthropic_error}")
-        results["can_proceed"] = True
-        
     else:
-        print("❌ NO VALID API KEYS AVAILABLE")
-        print("\nErrors:")
-        print(f"  • Claude: {anthropic_error}")
-        print(f"  • Groq: {groq_error}")
-        print("\nPlease fix your API keys in the .env file and try again.")
+        print("❌ GEMINI API KEY INVALID - cannot proceed")
+        print(f"   {gemini_error}")
+        print("\nPlease fix GEMINI_API_KEY in the .env file and try again.")
         results["can_proceed"] = False
-        
-        raise RuntimeError(
-            "No valid API keys available. Cannot proceed without at least one working LLM provider."
-        )
-    
-    print("="*70 + "\n")
-    
+        raise RuntimeError(f"Gemini API key is invalid: {gemini_error}")
+
+    print("=" * 70 + "\n")
     return results
 
 
 # Fallback Strategy Documentation
 FALLBACK_STRATEGY = """
-API Key Fallback Strategy
-=========================
+API Key Strategy
+=================
 
-The system requires at least ONE valid API key to operate:
-- Anthropic (Claude) - Primary provider for high-quality outputs
-- Groq - Secondary provider for speed and reliability
+Gemini is the sole LLM provider the pipeline calls (agents/base_agent.py). A valid
+GEMINI_API_KEY is required to proceed; Anthropic/Groq keys are checked for
+visibility only and are never a reason to block a run.
 
-Fallback Behavior:
-1. If BOTH keys valid: Use Claude with Groq as fallback
-2. If ONLY Claude valid: Use Claude exclusively (no fallback)
-3. If ONLY Groq valid: Use Groq exclusively (no fallback)
-4. If NO keys valid: FAIL FAST with clear error message
-
-Key Validation Checks:
-- Environment variable exists
-- Not a placeholder (e.g., "sk_ant_YOUR_ACTUAL_KEY_HERE")
-- Correct format (Claude: sk-ant-*, Groq: gsk_*)
-- Test API call succeeds (authentication works)
-
-To fix invalid keys:
-1. Edit .env file
-2. Set valid API keys:
-   ANTHROPIC_API_KEY=sk-ant-your_actual_key
-   GROQ_API_KEY=gsk_your_actual_key
+To fix an invalid Gemini key:
+1. Edit .env
+2. Set GEMINI_API_KEY=<your actual key>
 3. Restart the pipeline
 
-For API key setup:
-- Claude: https://console.anthropic.com/
-- Groq: https://console.groq.com/
+Gemini key setup: https://aistudio.google.com/apikey
 """

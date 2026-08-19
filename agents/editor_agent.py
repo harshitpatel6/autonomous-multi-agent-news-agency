@@ -115,8 +115,12 @@ class EditorAgent(Agent):
 
         backups = []
         for row in rows:
+            # id + summary_raw needed by check_content_grounding()'s get_full_text lookup -
+            # see the matching comment in agent_coordinator.py / publish.py. Backup clusters
+            # go through the same grounding gate as primary ones (digest.py), so they need
+            # the same columns.
             articles = conn.execute(
-                "SELECT source, title, url, published_at, fetched_at FROM articles WHERE cluster_id = ?",
+                "SELECT id, source, title, url, summary_raw, published_at, fetched_at FROM articles WHERE cluster_id = ?",
                 (row["id"],),
             ).fetchall()
             cluster_dict = dict(row)

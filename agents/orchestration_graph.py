@@ -16,7 +16,7 @@ from config import TOP_N_STORIES
 from agents.message_router import router
 from agents.agent_coordinator import AgentCoordinator
 from agents.degraded_mode import run_degraded_pipeline, activate as activate_degraded_mode
-from agents.base_agent import CLAUDE_AVAILABLE, GROQ_AVAILABLE
+from agents.base_agent import CLAUDE_AVAILABLE, GROQ_AVAILABLE, GEMINI_AVAILABLE
 from utils import mode_state
 
 # Import so the agents self-register on the router
@@ -172,7 +172,7 @@ def run_langgraph_pipeline() -> "tuple[bool, List[Dict], str]":
     print("🚀 MULTI-AGENT VALIDATION PIPELINE (via LangGraph)")
     print("=" * 70)
 
-    if not CLAUDE_AVAILABLE and not GROQ_AVAILABLE:
+    if not CLAUDE_AVAILABLE and not GROQ_AVAILABLE and not GEMINI_AVAILABLE:
         activate_degraded_mode("No LLM providers configured at graph startup")
         clusters = _coordinator.get_clusters_with_articles()
         all_articles = [a for c in clusters for a in c["articles"]]

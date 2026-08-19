@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { CATEGORIES, categoryBySlug } from "@/lib/categories";
+import { api } from "@/lib/api";
 
 export default function Header() {
   const pathname = usePathname();
@@ -11,6 +12,10 @@ export default function Header() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [currentDate, setCurrentDate] = useState("");
+  // Insights desk nav label - chosen by the LLM itself (agents/insight_agent.py::
+  // get_or_create_brand), never hardcoded here. Falls back to a neutral label until
+  // the API responds, so the nav item never flashes empty.
+  const [insightsName, setInsightsName] = useState("Insights");
 
   useEffect(() => {
     const now = new Date();
@@ -22,6 +27,12 @@ export default function Header() {
         year: "numeric",
       })
     );
+    api
+      .getInsightsBrand()
+      .then((b) => {
+        if (b?.name && !b._pending) setInsightsName(b.name);
+      })
+      .catch(() => {});
   }, []);
 
   const activeCategorySlug = pathname?.startsWith("/category/") ? pathname.split("/")[2] : undefined;
@@ -100,6 +111,11 @@ export default function Header() {
               {c.label}
             </Link>
           ))}
+          {/* Insights desk - original commentary/explainers, separate from the News
+              desk categories above (see agents/insight_agent.py). */}
+          <Link href="/insights" className={pathname?.startsWith("/insights") ? "active" : undefined}>
+            ✨ {insightsName}
+          </Link>
         </nav>
       </header>
 

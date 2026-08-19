@@ -1,0 +1,12 @@
+ web %  npm run dev
+
+ python3 -m uvicorn api.main:app --reload --port 8000
+
+
+kill 6653
+# if it won't die in a few seconds:
+kill -9 6653
+
+
+
+launchctl kickstart -k gui/501/com.newletter.publish

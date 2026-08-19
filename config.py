@@ -57,7 +57,6 @@ FEEDS = [
     # ("Reddit Artificial", "https://www.reddit.com/r/artificial/.rss"),
     
     # 6. Big Tech AI
-    ("Google AI Blog", "https://ai.googleblog.com/feeds/posts/default/-/AI?alt=rss"),
     ("Microsoft AI Blog", "https://www.microsoft.com/en-us/research/feed/"),
     ("AWS ML Blog", "https://aws.amazon.com/blogs/machine-learning/feed/"),
     ("NVIDIA Developer", "https://developer.nvidia.com/blog/feed/"),
@@ -65,7 +64,6 @@ FEEDS = [
     
     # 7. Additional Quality Sources
     ("Towards Data Science", "https://towardsdatascience.com/feed"),
-    ("Generalist Research", "https://generalist.com/feed"),
     ("AI Trends", "https://www.aitrends.com/feed/"),
 
     # 8. Business, Funding & Startups
@@ -76,17 +74,12 @@ FEEDS = [
 
 
     #9.USA VC and accelerators
-    ("Andreessen Horowitz", "https://a16z.com/feed/"),
-    ("Sequoia Capital", "https://www.sequoiacap.com/feed/"),
-    ("First Round Review", "https://review.firstround.com/feed.xml"),
     ("National Venture Capital Association", "https://nvca.org/feed/"),
     ("Brad Feld / Foundry", "https://feld.com/feed"),
     ("Gust", "https://gust.com/blog/feed"),
     ("VC Cafe", "https://vccafe.com/feed/"),
     ("LifeSciVC", "https://lifescivc.com/feed/"),
     ("AVC / Fred Wilson", "https://avc.com/feed/"),
-    ("Both Sides of the Table", "https://bothsidesofthetable.com/feed"),
-    ("Seth Levine / Foundry", "https://www.sethlevine.com/feed/"),
 
     # US VC / Accelerator Medium feeds
     ("Boost VC", "https://medium.com/feed/boost-vc"),
@@ -97,56 +90,36 @@ FEEDS = [
     ("Playfair Capital", "https://medium.com/feed/playfair-capital-blog"),
     ("Northstar Ventures", "https://northstarventures.co.uk/feed"),
     ("Peak Capital", "https://peak.capital/rss"),
-    ("Octopus Ventures", "https://octopusventures.com/blog/feed"),
-    ("Molten Ventures", "https://www.moltenventures.com/insights/feed"),
-    ("Fuel Ventures", "https://fuel.ventures/news/feed"),
 
     # Individual VC / Investor feeds
     ("Tomasz Tunguz", "https://tomtunguz.com/index.xml"),
     ("Hunter Walk", "https://hunterwalk.com/feed"),
     ("David G. Cohen", "https://feeds.feedburner.com/DavidGCohen"),
-    ("Jalak Jobanputra", "https://thebarefootvc.com/feed"),
     ("Christoph Janz", "https://christophjanz.blogspot.com/feeds/posts/default"),
     ("David Teten", "https://teten.com/feed"),
     ("Gotham Gal", "https://gothamgal.com/feed"),
-    ("Paul Graham", "https://paulgraham.com/rss.xml"),
 
     ("Latitud", "https://latitudlatam.substack.com/feed"),
-    ("Rockstart", "https://rockstart.pr.co/en/releases/rss"),
 
     # Individual VC / Investor feeds
     ("Maverick Ventures Israel", "https://maverick.vc/blog-feed.xml"),
     ("Vintage Investment Partners", "https://vintage-ip.com/feed"),
     ("Viola Group", "https://viola-group.com/feed"),
-    ("OurCrowd", "https://blog.ourcrowd.com/feed"),
     ("Team8", "https://team8.vc/feed"),
     ("Fusion VC", "https://blog.fusion-vc.com/feed"),
     ("TLV Partners", "https://tlv.partners/feed"),
     ("Moneta Venture Capital", "https://monetavc.com/category/blog/feed"),
-    ("NFX", "https://nfx.com/feed"),
-    ("F2 Venture Capital", "https://f2vc.com/feed"),
     ("Elron Ventures", "https://elronventures.com/feed"),
-    ("Vertex Ventures Israel", "https://vertexventures.co.il/feed"),
     ("Qumra Capital", "https://qumracapital.com/feed"),
     ("BRM Group", "https://brm.com/feed"),
-    ("Grove Ventures", "https://grovevc.com/feed"),
-    ("MizMaa Ventures", "https://mizmaa.com/feed"),
-    ("Glilot Capital Partners", "https://glilotcapital.com/feed"),
 
     # Individual VC / Investor feeds
-    ("Blume Ventures", "https://blume.vc/rss-feed"),
     ("Inflection Point Ventures", "https://ipventures.in/feed"),
 
-    # Hong Kong
-    ("Hong Kong Cyberport", "OFFICIAL RSS/XML — Cyberport Event feed"),
-    ("CP Ventures", "https://cp.ventures/feed"),
-
     # Canada
-    ("Georgian", "https://georgian.io/feed"),
     ("Vanedge Capital", "https://vanedgecapital.com/news/feed"),
     ("iGan Partners", "https://iganpartners.com/feed"),
     ("Concrete Ventures", "https://concrete.vc/feed"),
-    ("Brightspark", "https://brightspark.com/blog/feed"),
 
 
     # Japan
@@ -165,34 +138,19 @@ FEEDS = [
     ("Cloudflare", "https://blog.cloudflare.com/rss/"),
     ("Mozilla", "https://blog.mozilla.org/feed/"),
     ("Docker", "https://www.docker.com/feed/"),
-    ("DigitalOcean", "https://www.digitalocean.com/blog/rss.xml"),
     ("Twilio", "https://www.twilio.com/blog/feed"),
     ("Elastic", "https://www.elastic.co/blog/feed"),
-    ("Datadog", "https://www.datadoghq.com/blog/feed/"),
     ("MongoDB", "https://www.mongodb.com/blog/rss"),
-    ("Redis", "https://redis.io/blog/rss.xml"),
     ("HashiCorp", "https://www.hashicorp.com/blog/feed.xml"),
     ("Vercel", "https://vercel.com/atom"),
-    ("Netlify", "https://www.netlify.com/blog/feed/"),
     ("Heroku", "https://blog.heroku.com/feed"),
     ("Stripe", "https://stripe.com/blog/feed.rss"),
-    ("Shopify", "https://www.shopify.com/blog.atom"),
-    ("HubSpot", "https://blog.hubspot.com/rss.xml"),
-    ("Atlassian", "https://www.atlassian.com/blog/feed"),
-    ("Slack", "https://slack.com/intl/en-in/blog/feed"),
     ("Intercom", "https://www.intercom.com/blog/feed"),
     ("Zapier", "https://zapier.com/blog/rss/"),
-    ("Notion", "https://www.notion.com/blog/rss.xml"),
-    ("Figma", "https://www.figma.com/blog/feed/"),
-    ("Canva", "https://www.canva.com/newsroom/feed/"),
     ("Airtable", "https://blog.airtable.com/feed/"),
-    ("Asana", "https://asana.com/guide/feed"),
     ("GitLab", "https://about.gitlab.com/atom.xml"),
-    ("Sentry", "https://blog.sentry.io/rss/"),
     ("Postman", "https://blog.postman.com/feed/"),
-    ("Supabase", "https://supabase.com/blog/rss.xml"),
     ("Prisma", "https://www.prisma.io/blog/rss.xml"),
-    ("Deno", "https://deno.com/blog/rss.xml"),
     ("Rust", "https://blog.rust-lang.org/feed.xml"),
     ("Python", "https://blog.python.org/rss.xml"),
 
@@ -203,30 +161,15 @@ FEEDS = [
     ("Fly.io", "https://fly.io/blog/feed.xml"),
     ("Sourcegraph", "https://sourcegraph.com/blog/rss.xml"),
     ("Astral", "https://astral.sh/blog/rss.xml"),
-    ("Dagger", "https://dagger.io/blog/rss.xml"),
     ("Pulumi", "https://www.pulumi.com/blog/rss.xml"),
-    ("CircleCI", "https://circleci.com/blog/feed/"),
     ("Snyk", "https://snyk.io/blog/feed/"),
     ("JFrog", "https://jfrog.com/blog/feed/"),
     ("Grafana Labs", "https://grafana.com/blog/index.xml"),
     ("Prometheus", "https://prometheus.io/blog/feed.xml"),
-    ("Grafbase", "https://grafbase.com/blog/rss.xml"),
-    ("Caddy", "https://caddyserver.com/blog/index.xml"),
 
     # SaaS / productivity
 
-    ("Linear", "https://linear.app/changelog/rss.xml"),
-    ("1Password", "https://blog.1password.com/rss/"),
-    ("Obsidian", "https://obsidian.md/blog/rss.xml"),
-    ("Todoist", "https://todoist.com/inspiration/feed"),
-    ("Miro", "https://miro.com/blog/feed/"),
-    ("ClickUp", "https://clickup.com/blog/feed/"),
-    ("Monday.com", "https://monday.com/blog/feed/"),
-    ("Loom", "https://www.loom.com/blog/rss.xml"),
-    ("Calendly", "https://calendly.com/blog/rss.xml"),
-    ("Typeform", "https://www.typeform.com/blog/feed/"),
     ("Webflow", "https://webflow.com/blog/rss.xml"),
-    ("Framer", "https://www.framer.com/blog/rss.xml"),
     ("Ghost", "https://ghost.org/changelog/rss/"),
     ("Buffer", "https://buffer.com/resources/feed/"),
 
@@ -234,97 +177,45 @@ FEEDS = [
 
     ("Malwarebytes", "https://www.malwarebytes.com/blog/feed"),
     ("Tenable", "https://www.tenable.com/blog/feed"),
-    ("Rapid7", "https://www.rapid7.com/blog/rss.xml"),
     ("Okta", "https://sec.okta.com/rss.xml"),
-    ("Akamai", "https://www.akamai.com/blog/rss"),
 
     # Fintech / payments / financial technology
 
-    ("Mercury", "https://mercury.com/blog/rss.xml"),
-    ("Plaid", "https://plaid.com/blog/feed/"),
-    ("Brex", "https://www.brex.com/journal/rss.xml"),
-    ("Ramp", "https://ramp.com/blog/rss.xml"),
     ("Modern Treasury", "https://www.moderntreasury.com/journal/rss.xml"),
-    ("Lithic", "https://blog.lithic.com/rss.xml"),
-    ("Marqeta", "https://www.marqeta.com/blog/feed"),
-    ("Unit", "https://www.unit.co/blog/rss.xml"),
-    ("Treasury Prime", "https://www.treasuryprime.com/blog/rss.xml"),
-    ("Moov", "https://moov.io/blog/feed/"),
 
     # Ecommerce / marketplace / consumer
 
-    ("Faire", "https://www.faire.com/blog/rss.xml"),
     ("Gorgias", "https://www.gorgias.com/blog/rss.xml"),
-    ("Klaviyo", "https://www.klaviyo.com/blog/rss.xml"),
     ("Recharge", "https://rechargepayments.com/blog/feed/"),
-    ("Yotpo", "https://www.yotpo.com/blog/feed/"),
-    ("Gumroad", "https://gumroad.com/blog/rss"),
-    ("Vinted", "https://company.vinted.com/newsroom/rss.xml"),
-    ("Depop", "https://news.depop.com/rss"),
-    ("DoorDash", "https://doordash.news/rss.xml"),
-    ("Instacart", "https://instacart.corporate-newsroom.com/rss"),
 
-    ("Bun", "https://bun.com/blog/rss.xml"),
-    ("Zed", "https://zed.dev/blog/rss.xml"),
-    ("Warp", "https://www.warp.dev/blog/rss.xml"),
-    ("Raycast", "https://www.raycast.com/blog/rss.xml"),
-    ("Temporal", "https://temporal.io/blog/rss.xml"),
     ("PlanetScale", "https://planetscale.com/blog/rss.xml"),
     ("Neon", "https://neon.com/blog/rss.xml"),
-    ("Convex", "https://www.convex.dev/blog/rss.xml"),
-    ("Turso", "https://turso.tech/blog/rss.xml"),
-    ("Drizzle", "https://orm.drizzle.team/rss.xml"),
 
     ("AWS Architecture Blog", "https://aws.amazon.com/blogs/architecture/feed/"),
-    ("Google Cloud", "https://cloud.google.com/feeds/blog.xml"),
-    ("IBM", "https://www.ibm.com/blogs/think/feed/"),
-    ("Oracle", "https://blogs.oracle.com/feed"),
     ("Red Hat Developer", "https://developers.redhat.com/blog/feed"),
     ("VMware", "https://blogs.vmware.com/feed/"),
-    ("OpenStack", "https://www.openstack.org/blog/feed"),
 
     ("SAP", "https://news.sap.com/feed/"),
-    ("ServiceNow", "https://www.servicenow.com/blogs/rss.xml"),
-    ("Workday", "https://blog.workday.com/en-us/feed.xml"),
     ("DocuSign", "https://www.docusign.com/blog/feed"),
-    ("Zendesk", "https://www.zendesk.com/blog/feed/"),
-    ("Freshworks", "https://www.freshworks.com/blog/feed/"),
-    ("Twilio Segment", "https://segment.com/blog/feed/"),
-    ("DataCamp", "https://www.datacamp.com/blog/rss.xml"),
-    ("Udemy", "https://blog.udemy.com/feed/"),
     ("Coursera", "https://blog.coursera.org/feed/"),
 
     ("Reddit", "https://www.redditinc.com/blog/rss.xml"),
-    ("Pinterest", "https://newsroom.pinterest.com/en/feed"),
     ("Snap", "https://newsroom.snap.com/feed"),
     ("Spotify", "https://newsroom.spotify.com/feed/"),
-    ("TikTok Newsroom", "https://newsroom.tiktok.com/en-us/rss"),
     ("Discord", "https://discord.com/blog/rss.xml"),
-    ("Telegram", "https://telegram.org/blog/rss"),
 
-    ("AMD", "https://community.amd.com/s/feed/0D5xx000008TnJbCAK"),
-    ("Qualcomm", "https://www.qualcomm.com/news/onq/rss.xml"),
-    ("Arm", "https://newsroom.arm.com/rss.xml"),
-    ("TSMC", "https://pr.tsmc.com/english/rss"),
-    ("ASML", "https://www.asml.com/en/news/stories.rss"),
     ("Samsung Electronics", "https://news.samsung.com/global/feed"),
-    ("Sony", "https://www.sony.com/en/SonyInfo/News/rss/"),
-    ("Micron", "https://investors.micron.com/rss/news-releases.xml"),
 
     ("Rust Foundation", "https://foundation.rust-lang.org/feed/"),
-    ("Linux Foundation", "https://www.linuxfoundation.org/blog/feed"),
     ("CNCF", "https://www.cncf.io/blog/feed/"),
     ("KDE", "https://kde.org/announcements/index.xml"),
-    ("GNOME", "https://release.gnome.org/rss.xml"),
     ("Python Software Foundation", "https://pyfound.blogspot.com/feeds/posts/default"),
 
-    ("Google", "https://blog.google/feed/"),
     ("Meta Engineering", "https://engineering.fb.com/feed/"),
     ("Spotify Engineering", "https://engineering.atspotify.com/feed"),
     ("Dropbox Tech", "https://dropbox.tech/feed"),
     ("JetBrains", "https://blog.jetbrains.com/feed/"),
     ("Stack Overflow", "https://stackoverflow.blog/feed/"),
-    ("IBM Research", "https://research.ibm.com/blog/rss.xml"),
     ("Microsoft Security", "https://www.microsoft.com/en-us/security/blog/feed/"),
     ("Cisco Security", "https://blogs.cisco.com/security/feed"),
     ("Palo Alto Networks Unit 42", "https://unit42.paloaltonetworks.com/feed/"),
@@ -349,12 +240,64 @@ def _load_scout_sources():
 FEEDS = FEEDS + _load_scout_sources()
 
 # --- Pipeline settings ---
-LOOKBACK_HOURS = 72          # how far back to pull articles each run (72 hours = 3 days)
+LOOKBACK_HOURS = 24         # how far back to pull articles each run (72 hours = 3 days)
 ABSOLUTE_CUTOFF_DATE = "2026-07-01T00:00:00+00:00"  # HARD CUTOFF: Never process articles older than this
 CLUSTER_SIMILARITY_THRESHOLD = 0.28   # 0-1, higher = stricter matching for "same story"
 TOP_N_STORIES = 12           # how many stories make it into the EMAIL digest only (site has no cap)
 MIN_IMPORTANCE_SCORE = 3     # drop clusters scored below this (1-10 scale)
 SUMMARIZE_BATCH_SIZE = 150   # max clusters summarized per pipeline run (site runs every 15 min via publish.py)
+
+# Publish-candidate retry cap (cost control): a cluster that keeps failing Writer /
+# defamation-check used to get re-run through the full LLM pipeline every single
+# 15-min cycle forever, with no limit - an unbounded backlog silently turned into a
+# retry storm that burned through provider quota reprocessing the same stuck stories.
+# Now each cluster gets at most MAX_PUBLISH_ATTEMPTS tries (spaced out by the normal
+# 15-min cycle) before being marked validation_status='rejected' and left alone.
+# PUBLISH_CANDIDATE_BATCH_SIZE bounds how many candidates one run will even attempt,
+# same pattern as SUMMARIZE_BATCH_SIZE/SEO's SWEEP_BATCH_SIZE.
+MAX_PUBLISH_ATTEMPTS = 5
+PUBLISH_CANDIDATE_BATCH_SIZE = 30
+
+# Same retry-storm problem as MAX_PUBLISH_ATTEMPTS above, but on the already-published
+# side: publish.py::retry_missing_full_content() re-attempts every published cluster
+# still missing full_content on every 15-min cycle, with clusters.originality_attempts
+# (bumped once per ensure_full_article() failure - see agents/writer_agent.py) as the
+# only signal of how many times a given cluster has already failed. Discovered
+# 2026-08-15 clearing the corpus-wide originality backlog: a genuinely thin, hard-to-
+# transform single source (its Writer draft keeps tripping utils/similarity.py's gate
+# even after 3 escalating in-attempt rewrites) will never pass no matter how many times
+# it's retried, so without a cap it burns ~3 Gemini calls per cycle forever. Capped at
+# the same value as MAX_PUBLISH_ATTEMPTS for consistency; a cluster that hits this limit
+# just keeps rendering its short summary (safe fallback, not copied content) instead of
+# a full article - no different from what it's already showing today.
+MAX_FULL_CONTENT_RETRY_ATTEMPTS = 5
+
+# The email digest (main.py) used to only be triggered by launchd at two fixed
+# clock times (7:00/17:00). If the machine was asleep, off, or not logged in at
+# that exact minute, launchd simply skipped the run with no catch-up - on a laptop
+# that's only awake in the evenings, that meant the digest often never fired at
+# all. main.py is now triggered on a short recurring interval instead (like
+# publish.py already is) and self-guards with this: skip running again if the last
+# digest went out less than this many hours ago, so a Mac that's on continuously
+# for a while doesn't send duplicates. `main.py --force` bypasses this guard.
+DIGEST_MIN_INTERVAL_HOURS = 6
+
+# Same cost-control problem, one stage earlier: before this, a cluster that could
+# never be summarized (bad/garbled source text, a prompt that reliably trips every
+# provider's safety filter, etc.) had NO cap - summarize_clusters()'s query only
+# checked `summary IS NULL`, so it re-entered the batch and burned a fresh
+# Claude -> Groq -> Gemini attempt sequence every single 15-min cycle, forever,
+# with nobody aware it was happening. Now a cluster gets at most
+# MAX_AUTO_SUMMARIZE_ATTEMPTS automatic tries (tracked via clusters.summarize_attempts,
+# see db.py) before the pipeline stops picking it up on its own; it's surfaced on the
+# Processing History page instead, where a human can hit "Re-process" - a deliberate,
+# rate-limited, one-cluster-at-a-time action (see summarize.py::reprocess_cluster) -
+# once they believe the failure is worth spending another round of tokens on.
+MAX_AUTO_SUMMARIZE_ATTEMPTS = 3
+# Floor between reprocess attempts on the same cluster (auto or manual), so a
+# double-click or a page left open in two tabs can't fire two LLM calls back-to-back
+# for the same cluster.
+SUMMARIZE_RETRY_COOLDOWN_SECONDS = 60
 
 # --- Database ---
 DB_PATH = os.path.join(os.path.dirname(__file__), "digest.db")
@@ -376,9 +319,11 @@ GROQ_MODEL = "llama-3.3-70b-versatile"
 
 # --- Gemini API (third fallback tier, see agents/base_agent.py::call_llm) ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-# NOTE: "gemini-2.0-flash" returns 429/quota=0 on this key's project (blocked for
-# new users on that specific model) - "-latest" aliases route around that.
-GEMINI_MODEL = "gemini-flash-latest"
+# NOTE: both "gemini-2.0-flash" and "gemini-2.5-flash-lite" return 404 "no longer
+# available to new users" on this key's project (Google blocks new keys from pinned
+# versions of models it's since rolled forward) even though they still show up in
+# ListModels - the "-latest" rolling aliases route around that and actually work.
+GEMINI_MODEL = "gemini-flash-lite-latest"
 
 # --- Email (SMTP) ---
 SMTP_HOST = os.getenv("SMTP_HOST")
@@ -402,3 +347,37 @@ DIGEST_TEST_MODE = int(os.getenv("DIGEST_TEST_MODE", "1"))  # 1 = save to file, 
 # StateGraph with conditional QA<->Editor backup edges and parallel fact-checking)
 # instead of the linear agents.agent_coordinator call chain. Both produce identical output.
 USE_LANGGRAPH_ORCHESTRATION = os.getenv("USE_LANGGRAPH_ORCHESTRATION", "0") == "1"
+
+# --- Originality / anti-plagiarism guardrail (utils/similarity.py) ---
+# Added 2026-08-15 after a published article (cluster 537, KDNuggets' "Building an
+# End-to-End Data Science Portfolio Project" - a single-source, tutorial-style piece)
+# was found to closely mirror its one source's structure and specifics. Root cause:
+# agents/writer_agent.py's prompt told the Writer to "pull out EVERY name/figure/example"
+# from its sources, which for a tutorial (where the specific steps ARE the source's
+# protected expression, not just facts) is nearly indistinguishable from a rewrite -
+# and nothing in the pipeline ever compared generated text back against the actual
+# source text to catch it (the one existing check, SUMMARY_DUPLICATE_RATIO in
+# writer_agent.py, compares against the internal one-paragraph brief, not the source).
+#
+# Deliberately strict per product decision: the site would rather regenerate (or, after
+# MAX_ORIGINALITY_REWRITE_ATTEMPTS, simply not publish) a story than ship one that reads
+# as copied - no manual review step, this has to hold the line on its own. Thresholds
+# were sanity-checked against cluster 537's actual generated/source text pair, which
+# scored well above both cutoffs below; ordinary grounded-but-original writing (sharing
+# names/numbers/terminology with its source without reusing its phrasing) scores well
+# under them.
+SIMILARITY_SHINGLE_SIZE = 6            # compare overlap in runs of 6 words at a time
+SIMILARITY_JACCARD_THRESHOLD = 0.15    # >=15% of 6-word phrases shared with a source -> flagged
+SIMILARITY_VERBATIM_RUN_WORDS = 9      # any run of 9+ consecutive words copied verbatim -> flagged
+MAX_ORIGINALITY_REWRITE_ATTEMPTS = 3   # forced in-place rewrites (escalating instructions) before giving up
+
+# --- Insights desk (agents/insight_agent.py) ---
+# A second, separate content lane from the News desk above: original explainers,
+# research roundups, synthesis, and opinion pieces, not tied to any one external
+# source the way a `clusters` news story is. Its own table (`features`, see db.py)
+# rather than reusing `clusters`/`articles`, deliberately - that schema assumes "N
+# sources reporting one event," which is exactly the assumption that produced the
+# over-extraction bug above; forcing evergreen/creative content through it would
+# just recreate the same failure mode in a new place.
+INSIGHTS_PER_RUN = 2                   # how many features to generate per insights.py run
+

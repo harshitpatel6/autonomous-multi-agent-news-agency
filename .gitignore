@@ -1,2 +1,26 @@
 node_modules/
 .next/
+web/.next/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# DB and backups
+*.db
+*.db.backup*
+*.backup*
+digest_test_*.html
+
+# OS
+.DS_Store

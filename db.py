@@ -70,7 +70,8 @@ CREATE TABLE IF NOT EXISTS agent_logs (
     output_data TEXT,
     success INTEGER NOT NULL,
     error_message TEXT,
-    execution_time_ms INTEGER
+    execution_time_ms INTEGER,
+    pid INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS digest_log (
@@ -132,6 +133,34 @@ CREATE TABLE IF NOT EXISTS seo_page_issues (
     FOREIGN KEY (cluster_id) REFERENCES clusters(id)
 );
 
+-- Insights desk (agents/insight_agent.py): original, non-news editorial content
+-- (explainers, research roundups, weekly synthesis, opinion, fun/creative formats).
+-- Deliberately its own table, not `clusters` - see config.py's "Insights desk" comment
+-- for why reusing the news schema here would have recreated the over-extraction bug
+-- this whole migration exists to fix.
+CREATE TABLE IF NOT EXISTS features (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL,
+    published_at TEXT,
+    format TEXT NOT NULL,          -- 'roundup' | 'explainer' | 'weekly_synthesis' | 'opinion' | 'fun'
+    title TEXT,
+    teaser TEXT,
+    body_html TEXT,
+    sources TEXT,                  -- JSON [{name,url}] - inspiration links, if any (roundup/explainer/synthesis)
+    tags TEXT,                     -- JSON string[]
+    similarity_score REAL,
+    generation_attempts INTEGER DEFAULT 0
+);
+
+-- Small generic key/value store for AI-decided, persisted-once site config - currently
+-- just the Insights desk's self-chosen name/tagline/mission (agents/insight_agent.py's
+-- get_or_create_brand), so the frontend never hardcodes a name a human picked for it.
+CREATE TABLE IF NOT EXISTS site_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_clusters_sent_at ON clusters(sent_at);
 CREATE INDEX IF NOT EXISTS idx_clusters_digest_id ON clusters(digest_id);
@@ -144,19 +173,82 @@ CREATE INDEX IF NOT EXISTS idx_agent_logs_agent_name ON agent_logs(agent_name);
 CREATE INDEX IF NOT EXISTS idx_pipeline_runs_started_at ON pipeline_runs(started_at);
 CREATE INDEX IF NOT EXISTS idx_seo_audit_runs_run_at ON seo_audit_runs(run_at);
 CREATE INDEX IF NOT EXISTS idx_seo_page_issues_cluster_id ON seo_page_issues(cluster_id);
+CREATE INDEX IF NOT EXISTS idx_features_published_at ON features(published_at);
+CREATE INDEX IF NOT EXISTS idx_features_format ON features(format);
 """
 
 
 def get_connection():
-    """Get database connection with row factory"""
-    conn = sqlite3.connect(DB_PATH)
+    """Get database connection with row factory.
+
+    busy_timeout: the site publish.py cron (every 15 min) and the API server (e.g. a
+    manual "Re-process" click from the admin UI, see api/main.py) now both write to
+    `clusters` on their own schedules instead of one process owning it exclusively.
+    SQLite serializes writers at the file level; without a busy_timeout, a request
+    that lands mid-write from the other process fails immediately with "database is
+    locked" instead of just waiting the (usually sub-second) moment for the lock to
+    clear.
+    """
+    conn = sqlite3.connect(DB_PATH, timeout=5)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+# Columns added after the original CREATE TABLE shipped. "CREATE TABLE IF NOT EXISTS"
+# is a no-op on a DB that already has the `clusters` table, so new columns need an
+# explicit ALTER TABLE migration here or every pre-existing digest.db silently lacks
+# them forever. (publish_attempts/last_publish_attempt_at back the retry cap in
+# publish.py::publish_ready_clusters - without them a cluster that keeps failing
+# Writer/defamation-check gets retried by the full LLM pipeline every 15-min cycle
+# forever instead of giving up after MAX_PUBLISH_ATTEMPTS.)
+_CLUSTER_COLUMN_MIGRATIONS = [
+    ("publish_attempts", "INTEGER DEFAULT 0"),
+    ("last_publish_attempt_at", "TEXT"),
+    # Summarize-stage retry tracking (mirrors publish_attempts above) - backs the
+    # MAX_AUTO_SUMMARIZE_ATTEMPTS cap in summarize.py and the "Re-process" button on
+    # the admin Processing History page (see api/main.py::list_failed_clusters /
+    # reprocess_cluster_endpoint). summarize_error holds the last failure's reason so
+    # the UI can show *why* without anyone having to grep agent_logs.
+    ("summarize_attempts", "INTEGER DEFAULT 0"),
+    ("last_summarize_attempt_at", "TEXT"),
+    ("summarize_error", "TEXT"),
+    # Originality guardrail (utils/similarity.py, added 2026-08-15 - see config.py's
+    # SIMILARITY_* comment for the article-537 backstory). content_type ("news" or
+    # "tutorial_or_reference") is classified by the Reporter Agent alongside headline/
+    # category/summary and drives which Writer prompt mode agents/writer_agent.py uses.
+    # similarity_score/originality_attempts record the *last* Writer attempt's outcome
+    # (score is the best/lowest achieved before either passing or exhausting
+    # MAX_ORIGINALITY_REWRITE_ATTEMPTS) for the admin UI - a story is only ever
+    # published at all if that attempt passed the strict gate, so there is no
+    # "published but flagged" state to surface; this is purely observability.
+    ("content_type", "TEXT"),
+    ("similarity_score", "REAL"),
+    ("originality_attempts", "INTEGER DEFAULT 0"),
+]
+
+
+def _migrate(conn):
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(clusters)")}
+    for name, coltype in _CLUSTER_COLUMN_MIGRATIONS:
+        if name not in existing:
+            conn.execute(f"ALTER TABLE clusters ADD COLUMN {name} {coltype}")
+
+    # pid (added 2026-08-15): which OS process wrote each agent_logs row. Without it,
+    # publish.py::summarize_run_errors can only scope "this run's errors" by a
+    # timestamp window - and any other script sharing this DB (rewrite_at_risk_articles.py,
+    # insights.py, a manually-run digest.py) that happens to call an Agent while a publish.py
+    # cycle's window is open gets its failures silently folded into that cycle's "Top
+    # errors" on the Processing History page, even when that cycle had zero real
+    # candidates of its own. Scoping by pid instead of just time fixes that misattribution.
+    agent_logs_cols = {row["name"] for row in conn.execute("PRAGMA table_info(agent_logs)")}
+    if "pid" not in agent_logs_cols:
+        conn.execute("ALTER TABLE agent_logs ADD COLUMN pid INTEGER")
 
 
 def init_db():
     """Initialize database with schema"""
     conn = get_connection()
     conn.executescript(SCHEMA)
+    _migrate(conn)
     conn.commit()
     conn.close()

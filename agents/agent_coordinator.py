@@ -17,7 +17,7 @@ from agents import editor_agent as _editor_module  # noqa: F401
 from agents import fact_checker_agent as _fc_module  # noqa: F401
 from agents import ceo_agent as _ceo_module        # noqa: F401
 from agents.degraded_mode import run_degraded_pipeline, activate as activate_degraded_mode
-from agents.base_agent import CLAUDE_AVAILABLE, GROQ_AVAILABLE
+from agents.base_agent import CLAUDE_AVAILABLE, GROQ_AVAILABLE, GEMINI_AVAILABLE
 from utils import mode_state
 
 
@@ -25,7 +25,7 @@ class AgentCoordinator:
     """Thin orchestration layer: wires agent inputs/outputs together via the router."""
 
     def __init__(self):
-        if not CLAUDE_AVAILABLE and not GROQ_AVAILABLE:
+        if not CLAUDE_AVAILABLE and not GROQ_AVAILABLE and not GEMINI_AVAILABLE:
             print("⚠️  No LLM clients available — coordinator will rely on degraded mode.")
         self.router = router
 
@@ -56,8 +56,16 @@ class AgentCoordinator:
 
         result = []
         for cluster in clusters:
+            # id + summary_raw: required by check_content_grounding() (fact_checker_agent.py)
+            # to look up the cached full-article text via utils.fulltext.get_full_text - the
+            # same source material the Writer used - and to fall back to summary_raw when
+            # there's no full-text cache. Omitting them here made every digest-pipeline
+            # grounding check compare the generated article against an empty source block,
+            # so it reliably flagged real, correctly-sourced facts as fabricated (see the
+            # matching fix + comment in publish.py::get_publish_candidates for the
+            # site-pipeline half of this same bug, confirmed against production 2026-08-13).
             articles = conn.execute(
-                "SELECT source, title, url, published_at, fetched_at FROM articles WHERE cluster_id = ?",
+                "SELECT id, source, title, url, summary_raw, published_at, fetched_at FROM articles WHERE cluster_id = ?",
                 (cluster["id"],),
             ).fetchall()
             cluster_dict = dict(cluster)
@@ -84,7 +92,7 @@ class AgentCoordinator:
         if not clusters:
             return False, [], "No clusters available for digest"
 
-        if not CLAUDE_AVAILABLE and not GROQ_AVAILABLE:
+        if not CLAUDE_AVAILABLE and not GROQ_AVAILABLE and not GEMINI_AVAILABLE:
             activate_degraded_mode("No LLM providers configured at coordinator startup")
             all_articles = [a for c in clusters for a in c["articles"]]
             fallback_clusters = run_degraded_pipeline(all_articles, TOP_N_STORIES)

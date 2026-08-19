@@ -8,11 +8,13 @@ multiply LLM cost across the whole pipeline.
 """
 import difflib
 import json
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
+from config import MAX_ORIGINALITY_REWRITE_ATTEMPTS
 from db import get_connection
 from utils.fulltext import get_full_text
 from utils.textclean import strip_html
+from utils.similarity import similarity_report
 from agents.base_agent import Agent
 from agents.message_router import register_agent
 
@@ -28,8 +30,61 @@ MIN_ARTICLE_WORDS = 120
 # (deck, "Key Takeaways" fallback, and body all falling back to the same short text).
 SUMMARY_DUPLICATE_RATIO = 0.75
 
-ARTICLE_PROMPT_TEMPLATE = """You are a senior staff writer at a professional AI industry news site \
-(think the editorial quality of TechCrunch or The Information). You've been given an already \
+# Injected into the prompt only for content_type == "tutorial_or_reference" (Reporter
+# Agent's classification - see agents/reporter_agent.py). Replaces the default "extract
+# every detail" instruction, which is exactly what turned cluster 537 (KDNuggets' "Building
+# an End-to-End Data Science Portfolio Project") into a near-copy: for a how-to/listicle,
+# the ordered steps/field names/structure ARE the source's protected expression, not just
+# facts, so "extract everything" and "reconstruct the tutorial" are the same instruction.
+TUTORIAL_MODE_INSTRUCTIONS = """
+This source is a TUTORIAL, GUIDE, LISTICLE, OR REFERENCE PIECE, not a news event - treat it \
+differently from ordinary reporting:
+- Do NOT reconstruct its exact step list, field/variable/parameter names, code, or item-by-item \
+structure. Reproducing the specific ordered detail of a how-to guide is real copying no matter how \
+you rephrase the sentences around it.
+- Describe the APPROACH at a conceptual level instead: what problem it solves, why the idea is useful, \
+roughly how it's organized (e.g. "a multi-stage pipeline covering data prep through deployment" rather \
+than naming every stage and field). Round off enumerated lists into prose about the shape of the thing.
+- Spend real space on independent commentary that isn't in the source at all: how this compares to how \
+people usually approach the same problem, who it's actually useful for, a practical caveat, or a \
+skeptical angle - your own added value, not a summary of theirs.
+- End by sending the reader to the original source for the actual step-by-step walkthrough - you are \
+the map, not the terrain.
+"""
+
+# Injected only when the cluster has exactly one source (no corroboration to synthesize across).
+# A mandatory, source-independent section is the most direct way to make a single-source piece
+# genuinely transformative rather than a rewrite of the one article it's based on.
+SINGLE_SOURCE_MODE_INSTRUCTIONS = """
+This story has exactly ONE source. Because of that, you MUST include a dedicated "Our Take" <h3> \
+section (in addition to the other required sections) containing analysis that does NOT appear in the \
+source at all - your own read on why this matters, how it compares to alternatives or prior approaches, \
+who should actually care, or a practical/skeptical angle. One throwaway sentence is not enough; this \
+section is what earns the piece the right to be published as more than a rewrite of its one source.
+"""
+
+# Injected only on internal rewrite retries (see write_full_article's loop below), after an
+# attempt failed utils.similarity's strict originality gate. Escalates rather than repeating
+# the same instructions verbatim, since a plain retry of an unchanged prompt tends to regenerate
+# something close to the same text.
+ORIGINALITY_ESCALATION = """
+REWRITE REQUIRED - READ THIS FIRST: your previous draft was flagged as too textually close to a \
+source (a long run of words matched the source nearly verbatim, or the piece leaned too heavily on \
+its exact phrasing throughout). Start over with a different structure and your own sentence \
+constructions from scratch - do not reuse the source's phrasing, clause order, or sentence rhythm even \
+when covering the same fact. Compress or generalize any step-by-step or listed detail instead of \
+reproducing it near-verbatim, and lean harder into independent analysis/commentary that isn't in the \
+source at all.
+
+Most often this specific flag means ONE sentence or quote in an otherwise original draft was copied \
+intact (9+ words in a row matching a source), not that the whole piece read as a rewrite. If you're \
+including a direct quote from a source, either keep it under 9 words with quotation marks, or convert \
+it to indirect speech in your own words instead of quoting it. Do not reuse a source's headline-style \
+phrase or descriptive clause around a product/paper name even if the name itself is fine to repeat.
+"""
+
+ARTICLE_PROMPT_TEMPLATE = """{originality_note}You are a senior staff writer at a professional AI industry \
+news site (think the editorial quality of TechCrunch or The Information). You've been given an already \
 fact-checked story to write up in full for the website. Do not invent facts, quotes, or numbers that \
 aren't in the sources below — only elaborate on, contextualize, and explain what's actually there.
 
@@ -41,6 +96,27 @@ lawsuit, investigation, or allegation, present it as exactly that — attributed
 negative characterization of a named party is directly supported, cut it rather than include it; a shorter, \
 duller sentence is always the safer choice than a punchier one you can't ground in the sources.
 
+ORIGINALITY RULE — this is a hard requirement, not a style preference: never lift a run of the source's \
+wording into your draft. Every sentence must be your own construction — reorganize, don't transcribe. \
+This site does not republish or lightly paraphrase other outlets' work; it reports independently on what \
+they described. When two ways of saying something are equally clear, pick the one that reads least like \
+the source's own sentence.
+
+VERBATIM RUN LIMIT — the specific, mechanically-checked version of the rule above: your draft is scanned \
+against every source and automatically rejected if ANY stretch of 9 or more consecutive words matches a \
+source exactly, even a single such run inside an otherwise fully original piece. This is the failure mode \
+that usually slips through: not the whole piece reading copied (that's a separate, coarser check), but one \
+untouched sentence, clause, product tagline, or quote hiding inside an otherwise original draft. Concretely:
+- Quotes: never carry a source's quoted statement verbatim if it runs 9+ words. Either paraphrase it as \
+indirect speech ("X said the update was aimed at...") or, if the exact wording matters enough to quote \
+directly, trim it to a short fragment under 9 words inside quotation marks with clear attribution.
+- Named things (product names, paper/report titles, feature names) are fine to reuse exactly since they're \
+not the source's "expression" - but do NOT chain one straight into the surrounding descriptive clause the \
+source used around it; write your own sentence around the name instead.
+- Before finalizing, mentally check any sentence that felt easy to write, especially the lede and any line \
+built around a striking phrase from a source - those are the ones most likely to have copied a run intact \
+without you noticing while focused on getting the facts right.
+{mode_instructions}
 HEADLINE: {headline}
 CATEGORY: {category}
 EDITORIAL BRIEF (already-approved short summary): {summary}
@@ -105,22 +181,36 @@ class WriterAgent(Agent):
         super().__init__("Writer")
 
     @staticmethod
-    def _build_sources_block(articles: List[Dict]) -> str:
+    def _gather_sources(articles: List[Dict]) -> Tuple[str, List[str]]:
+        """Builds the prompt's sources_block AND collects the raw full texts used, in one
+        pass - the latter is what agents/utils/similarity.py's originality gate below
+        compares the generated article back against, so it must be the SAME material the
+        Writer actually saw (not a re-fetch, and not summary_raw when full text was used)."""
         lines = []
+        full_texts = []
         for a in articles:
             full_text = get_full_text(a["id"], a.get("url"), a.get("source")) if a.get("id") else ""
             if full_text:
                 lines.append(f"- [{a['source']}] {a['title']} (FULL TEXT)\n  {full_text[:3000]}")
+                full_texts.append(full_text)
             else:
                 snippet = (a.get("summary_raw") or "")[:1200]
                 lines.append(f"- [{a['source']}] {a['title']} (TEASER ONLY)\n  {snippet}")
-        return "\n".join(lines)
+        return "\n".join(lines), full_texts
 
     @staticmethod
-    def _target_word_range(importance_score: Optional[int]) -> str:
+    def _target_word_range(importance_score: Optional[int], content_type: Optional[str], is_single_source: bool) -> str:
         """Scale target article length to how big the story actually is, instead of forcing
         every cluster (a minor tools release and a major funding round alike) into the same
-        800-1000 word band."""
+        800-1000 word band.
+
+        Single-source tutorial/reference content is capped low regardless of importance:
+        forcing 700-1200 words out of one thin how-to source is exactly the length pressure
+        that drove the Writer to over-extract the source's own step-by-step detail (see
+        config.py's SIMILARITY_* comment) - there usually isn't that much genuinely original
+        material to say about someone else's single guide."""
+        if content_type == "tutorial_or_reference" and is_single_source:
+            return "350-500"
         try:
             score = int(importance_score)
         except (TypeError, ValueError):
@@ -163,39 +253,123 @@ class WriterAgent(Agent):
 
         return None
 
+    @staticmethod
+    def _similarity_reason(full_content_html: str, source_full_texts: List[str]) -> Tuple[Optional[str], float, str]:
+        """The check article 537 shipped without: compares the generated body against the
+        ACTUAL source text (not the internal summary - see SUMMARY_DUPLICATE_RATIO above,
+        which is a different check for a different bug). Returns (reason_or_None, score,
+        copied_phrase) - score is stored on the cluster regardless of outcome, for the admin
+        UI; copied_phrase is the actual matched text behind the longest verbatim run (empty
+        unless that's what tripped the flag), fed back into the next attempt's prompt by
+        write_full_article() below so the retry targets the specific phrase instead of
+        guessing at what to avoid."""
+        if not source_full_texts:
+            return None, 0.0, ""  # nothing to compare against (all sources were TEASER ONLY)
+        report = similarity_report(strip_html(full_content_html), source_full_texts)
+        if report["flagged"]:
+            reason = (
+                f"too similar to a source (jaccard={report['max_jaccard']:.3f}, "
+                f"verbatim_run={report['max_verbatim_run_words']} words)"
+            )
+            return reason, report["score"], report.get("max_verbatim_run_text", "")
+        return None, report["score"], ""
+
+    @staticmethod
+    def _build_originality_note(attempt: int, copied_phrase: str) -> str:
+        """Prompt prefix for a given retry attempt. Attempt 1 gets nothing (the base prompt's
+        ORIGINALITY RULE / VERBATIM RUN LIMIT sections are enough for a first try). Attempt 2+
+        gets ORIGINALITY_ESCALATION, and - this is the part that actually breaks repeat
+        failures - if the previous attempt's flag was specifically a verbatim run, the literal
+        copied phrase is quoted back so the model has something concrete to avoid instead of a
+        generic "don't copy" reminder it's already seen once and failed to act on."""
+        if attempt <= 1:
+            return ""
+        note = ORIGINALITY_ESCALATION
+        if copied_phrase:
+            note += (
+                f'\nThe exact phrase your last draft copied from a source was: "{copied_phrase}". This precise '
+                "wording (or anything close to it word-for-word) must not appear anywhere in the new draft - "
+                "express that idea with completely different words and sentence structure.\n"
+            )
+        return note
+
     def write_full_article(
         self, headline: str, category: str, summary: str, articles: List[Dict],
-        importance_score: Optional[int] = None,
+        importance_score: Optional[int] = None, content_type: Optional[str] = None,
     ) -> Optional[Dict]:
-        """Returns {"full_content": "<html>", "key_takeaways": [...]}, or None on failure."""
+        """Returns {"full_content": "<html>", "key_takeaways": [...], "similarity_score": float,
+        "originality_attempts": int}, or None on failure.
+
+        Runs up to MAX_ORIGINALITY_REWRITE_ATTEMPTS internal generations, escalating the
+        anti-copying instruction each time a draft fails the originality gate (utils.similarity),
+        before giving up. This is deliberately a hard, unattended gate with no "publish anyway,
+        flag for review" fallback - per product decision (2026-08-15), the site would rather not
+        publish a single-source/tutorial story than risk it reading as copied, and a human
+        reviewer was never actually catching this class of problem in practice (see
+        agents/fact_checker_agent.py's single-source handling, which caps at "review" for
+        corroboration reasons, not originality ones)."""
         if not articles:
             return None
-        prompt = ARTICLE_PROMPT_TEMPLATE.format(
-            headline=headline,
-            category=category or "General",
-            summary=summary,
-            sources_block=self._build_sources_block(articles),
-            word_range=self._target_word_range(importance_score),
-        )
-        response = self.call_llm(prompt, max_tokens=2200, json_mode=True)
-        parsed = self.parse_json(response)
-        fail_reason = self._quality_reason(parsed, summary)
-        success = fail_reason is None
-        self.logger.log_action(
-            "write_full_article", input_data={"headline": headline},
-            output_data={
-                "chars": len(parsed["full_content"]),
-                "takeaways": len(parsed.get("key_takeaways") or []),
-            } if success else None,
-            success=success,
-            error_message=fail_reason,
-        )
-        if not success:
-            return None
-        return {
-            "full_content": parsed["full_content"],
-            "key_takeaways": parsed.get("key_takeaways") or [],
-        }
+
+        is_single_source = len({a.get("source") for a in articles}) <= 1
+        mode_instructions = ""
+        if content_type == "tutorial_or_reference":
+            mode_instructions += TUTORIAL_MODE_INSTRUCTIONS
+        if is_single_source:
+            mode_instructions += SINGLE_SOURCE_MODE_INSTRUCTIONS
+
+        sources_block, source_full_texts = self._gather_sources(articles)
+        word_range = self._target_word_range(importance_score, content_type, is_single_source)
+
+        best_score = None
+        copied_phrase = ""  # set after a flagged attempt; fed into the NEXT attempt's prompt
+        for attempt in range(1, MAX_ORIGINALITY_REWRITE_ATTEMPTS + 1):
+            prompt = ARTICLE_PROMPT_TEMPLATE.format(
+                originality_note=self._build_originality_note(attempt, copied_phrase),
+                mode_instructions=mode_instructions,
+                headline=headline,
+                category=category or "General",
+                summary=summary,
+                sources_block=sources_block,
+                word_range=word_range,
+            )
+            response = self.call_llm(prompt, max_tokens=2200, json_mode=True)
+            parsed = self.parse_json(response)
+            fail_reason = self._quality_reason(parsed, summary)
+
+            similarity_score = None
+            copied_phrase = ""
+            if fail_reason is None:
+                fail_reason, similarity_score, copied_phrase = self._similarity_reason(parsed["full_content"], source_full_texts)
+                if similarity_score is not None:
+                    best_score = similarity_score if best_score is None else min(best_score, similarity_score)
+
+            success = fail_reason is None
+            self.logger.log_action(
+                "write_full_article", input_data={"headline": headline, "attempt": attempt, "content_type": content_type},
+                output_data={
+                    "chars": len(parsed["full_content"]),
+                    "takeaways": len(parsed.get("key_takeaways") or []),
+                    "similarity_score": similarity_score,
+                } if success else {"similarity_score": similarity_score},
+                success=success,
+                error_message=fail_reason,
+            )
+            if success:
+                return {
+                    "full_content": parsed["full_content"],
+                    "key_takeaways": parsed.get("key_takeaways") or [],
+                    "similarity_score": similarity_score,
+                    "originality_attempts": attempt,
+                }
+            # Only worth retrying if the failure was specifically an originality flag - a
+            # thin/malformed draft (_quality_reason failing) won't be fixed by the escalation
+            # text, so don't burn the retry budget on it; let the normal publish.py retry-next-
+            # cycle path handle that instead.
+            if "too similar to a source" not in (fail_reason or ""):
+                break
+
+        return None
 
     def handle_message(self, message: Dict) -> Dict:
         payload = message.get("payload", {})
@@ -218,7 +392,7 @@ def _pick_cluster_image(cluster_id: int) -> Optional[Dict]:
     The lead image for a cluster's card/hero: the first available image among its
     source articles (populated by ingest.py from the RSS entry, or by
     utils/fulltext.py's og:image scrape - normally already run as a side effect of the
-    get_full_text() calls in _build_sources_block, by the time this is called from
+    get_full_text() calls in _gather_sources, by the time this is called from
     ensure_full_article() below). image_credit/image_credit_url identify the original
     publisher, since we hotlink rather than re-host the image.
 
@@ -334,30 +508,44 @@ def ensure_full_article(cluster: Dict) -> bool:
         result = writer_agent.write_full_article(
             cluster.get("headline"), cluster.get("category"), cluster.get("summary"),
             [dict(a) for a in source_articles], cluster.get("importance_score"),
+            cluster.get("content_type"),
         )
     except Exception as e:
         print(f"  [error] Writer Agent failed for cluster {cluster['id']}: {str(e)[:100]}")
         result = None
 
     if not result:
+        # Even a failed attempt (originality gate exhausted, or a thin/malformed draft)
+        # is worth recording - the admin UI can otherwise never distinguish "never tried"
+        # from "tried and couldn't clear the originality bar."
+        conn = get_connection()
+        conn.execute(
+            "UPDATE clusters SET originality_attempts = COALESCE(originality_attempts, 0) + 1 WHERE id = ?",
+            (cluster["id"],),
+        )
+        conn.commit()
+        conn.close()
         return False
 
     image = _pick_cluster_image(cluster["id"])
     conn = get_connection()
     if image:
         conn.execute(
-            """UPDATE clusters SET full_content = ?, key_takeaways = ?,
-               image_url = ?, image_credit = ?, image_credit_url = ? WHERE id = ?""",
+            """UPDATE clusters SET full_content = ?, key_takeaways = ?, similarity_score = ?,
+               originality_attempts = ?, image_url = ?, image_credit = ?, image_credit_url = ? WHERE id = ?""",
             (
                 result["full_content"], json.dumps(result["key_takeaways"]),
+                result.get("similarity_score"), result.get("originality_attempts"),
                 image["image_url"], image["image_credit"], image["image_credit_url"],
                 cluster["id"],
             ),
         )
     else:
         conn.execute(
-            "UPDATE clusters SET full_content = ?, key_takeaways = ? WHERE id = ?",
-            (result["full_content"], json.dumps(result["key_takeaways"]), cluster["id"]),
+            """UPDATE clusters SET full_content = ?, key_takeaways = ?, similarity_score = ?,
+               originality_attempts = ? WHERE id = ?""",
+            (result["full_content"], json.dumps(result["key_takeaways"]),
+             result.get("similarity_score"), result.get("originality_attempts"), cluster["id"]),
         )
     conn.commit()
     conn.close()

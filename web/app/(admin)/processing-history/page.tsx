@@ -3,19 +3,28 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, PipelineRun } from "@/lib/api";
 import { formatDateTime, timeAgo } from "@/lib/format";
+import FailedClustersTable from "./FailedClustersTable";
 
 // publish.py runs every 15 minutes (launchd StartInterval), so a poll faster than
 // that just re-fetches the same rows - 60s keeps page 1 feeling live without hammering
 // the API.
 const AUTO_REFRESH_MS = 60_000;
 
+const RUNS_SHOWN = 20;
+
 export default function ProcessingHistoryPage() {
   const [runs, setRuns] = useState<PipelineRun[] | null>(null);
+  const [totalPublished, setTotalPublished] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
 
   const load = useCallback(() => {
-    api.getPipelineRuns(20).then(setRuns).catch((e) => setError(String(e)));
+    api.getPipelineRuns(RUNS_SHOWN).then(setRuns).catch((e) => setError(String(e)));
+    // Same all-time count Article History shows, so the two pages visibly agree
+    // instead of someone eyeballing "sum of the rows on screen" against it - this
+    // page only ever shows the most recent RUNS_SHOWN runs, which will always be
+    // less than the all-time total once more than RUNS_SHOWN runs have happened.
+    api.getArticlesCount().then((c) => setTotalPublished(c.total)).catch(() => {});
   }, []);
 
   useEffect(load, [load]);
@@ -23,6 +32,8 @@ export default function ProcessingHistoryPage() {
     const id = setInterval(load, AUTO_REFRESH_MS);
     return () => clearInterval(id);
   }, [load]);
+
+  const shownSum = runs?.reduce((sum, r) => sum + r.published_count, 0) ?? null;
 
   return (
     <div>
@@ -32,6 +43,14 @@ export default function ProcessingHistoryPage() {
         many clusters it managed to summarize (vs. failed), and why. This is the place to look
         when very few stories publish in a cycle: it&apos;s usually an ingest/summarize bottleneck,
         not a &quot;the RSS feeds went quiet&quot; problem.
+      </p>
+      <p style={{ color: "var(--muted)", fontSize: 13 }}>
+        Showing the last {RUNS_SHOWN} runs
+        {shownSum !== null && <> ({shownSum} stories published in that window)</>}. This is a
+        window, not the full history — the all-time published total lives on{" "}
+        <a href="/history">Article History</a>
+        {totalPublished !== null && <> ({totalPublished} published all-time)</>}; the two are
+        expected to differ once there have been more than {RUNS_SHOWN} runs.
       </p>
 
       {error && <p className="error">{error}</p>}
@@ -122,6 +141,8 @@ export default function ProcessingHistoryPage() {
           )}
         </tbody>
       </table>
+
+      <FailedClustersTable />
     </div>
   );
 }

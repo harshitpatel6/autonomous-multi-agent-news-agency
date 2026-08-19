@@ -1,28 +1,35 @@
 """
-Base Agent class: shared LLM calling (Claude -> Groq -> Gemini fallback), logging,
-and error-handling primitives used by every specialized agent. (Supports Tasks 2.6,
-3.1, 3.4)
+Base Agent class: shared LLM calling (Gemini), logging, and error-handling
+primitives used by every specialized agent. (Supports Tasks 2.6, 3.1, 3.4)
+
+Gemini is the only provider call_llm() uses. This used to fall through
+Claude -> Groq -> Gemini, but Claude's key in .env was a placeholder that was
+never replaced (Claude was never actually called, in the project's entire
+history - see git history on CLAUDE_AVAILABLE if you need the forensics), and
+Groq's free-tier daily quota (100k tokens/day) got exhausted most runs anyway,
+which just added log noise and startup latency for a provider that wasn't
+carrying real traffic. Simplified to call the one provider that's actually
+paid/configured and has been carrying ~100% of real traffic already. See
+CLAUDE_AVAILABLE / GROQ_AVAILABLE below if either provider gets a real,
+working key again later - they're kept as informational flags (imported by
+agent_coordinator.py / orchestration_graph.py's degraded-mode checks) but
+call_llm() itself no longer attempts either.
 """
 import time
 import json as _json
 from typing import Optional
 
-from config import ANTHROPIC_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, CLAUDE_MODEL, GROQ_MODEL, GEMINI_MODEL
+from config import GEMINI_API_KEY, GEMINI_MODEL
 from utils.agent_logger import AgentLogger
 from utils.error_handling import breaker, classify_and_escalate, CRITICAL
 from utils.error_classify import is_quota_error, extract_retry_seconds
 
-try:
-    import anthropic
-    CLAUDE_AVAILABLE = bool(ANTHROPIC_API_KEY and "YOUR_ACTUAL_KEY" not in (ANTHROPIC_API_KEY or ""))
-except ImportError:
-    CLAUDE_AVAILABLE = False
-
-try:
-    from groq import Groq
-    GROQ_AVAILABLE = bool(GROQ_API_KEY)
-except ImportError:
-    GROQ_AVAILABLE = False
+# Fixed off: call_llm() no longer attempts either provider (see module docstring).
+# Kept as named constants rather than deleted so agent_coordinator.py's and
+# orchestration_graph.py's "is any LLM available at all" degraded-mode checks
+# don't need an unrelated rewrite - they already OR this in with GEMINI_AVAILABLE.
+CLAUDE_AVAILABLE = False
+GROQ_AVAILABLE = False
 
 try:
     from google import genai
@@ -31,14 +38,19 @@ try:
 except ImportError:
     GEMINI_AVAILABLE = False
 
-# All providers this codebase knows how to fall back through, in priority order.
-# Used to decide when every option is exhausted (see call_llm's final CRITICAL check)
-# without hardcoding a 2-provider assumption in multiple places.
-ALL_PROVIDERS = ("claude", "groq", "gemini")
+# Used by summarize.py's _infer_failure_reason to tell "the provider is rate-limited"
+# apart from "the model returned garbage for this specific cluster" - kept as a tuple
+# (rather than inlining "gemini" there) so that file doesn't hardcode a provider name.
+ALL_PROVIDERS = ("gemini",)
 
 # See the comment at the Gemini call site: padding for GEMINI_MODEL's internal
 # "thinking" tokens, which come out of max_output_tokens before the visible answer.
-GEMINI_THINKING_TOKEN_BUFFER = 300
+# 300 was sized off a trivial prompt (thoughts_token_count ~136-140). Real reporter
+# prompts (legal rule + beat instructions + 4-part task) measured ~960 thinking
+# tokens with thinking capped at "low" measured ~470 - so 300 silently truncated
+# every real call. Paired with thinking_level="low" at the call site below, which
+# keeps thinking bounded instead of scaling with prompt complexity.
+GEMINI_THINKING_TOKEN_BUFFER = 800
 
 
 class AgentError(Exception):
@@ -55,24 +67,18 @@ class Agent:
         self.name = name
         self.logger = AgentLogger(name)
 
-        self.claude_client = None
-        self.groq_client = None
         self.gemini_client = None
-        if CLAUDE_AVAILABLE:
-            try:
-                self.claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-            except Exception:
-                pass
-        if GROQ_AVAILABLE:
-            try:
-                self.groq_client = Groq(api_key=GROQ_API_KEY)
-            except Exception:
-                pass
         if GEMINI_AVAILABLE:
             try:
                 self.gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-            except Exception:
-                pass
+            except Exception as e:
+                # A client that fails to construct here used to fail silently (bare
+                # except: pass) - the only way anyone found out Claude's key was a
+                # placeholder was by cross-referencing agent_logs by hand. Logging
+                # through the same AgentLogger call_llm[...] uses means a bad key
+                # shows up in agent_logs / the dashboard's error summary on the very
+                # first run instead of just never being called, with no trace either way.
+                self.logger.log_action("init_client[gemini]", success=False, error_message=str(e), level="WARNING")
 
     def call_llm(
         self,
@@ -82,92 +88,55 @@ class Agent:
         json_mode: bool = True,
         retries: int = 2,
     ) -> Optional[str]:
-        """Universal LLM caller: Claude -> Groq -> Gemini, retrying the first with
-        backoff on transient errors before falling through. Each provider call is
-        wrapped by the shared circuit breaker, so a provider that's failing hard
-        (esp. a quota/rate-limit error, which gets a multi-hour cooldown instead of
-        the default 60s - see CircuitBreaker) gets skipped entirely on the next call
-        instead of being re-probed and wasting the request."""
+        """Gemini caller with retry + backoff on transient errors. Wrapped by the shared
+        circuit breaker, so a hard failure (esp. a quota/rate-limit error, which gets a
+        multi-hour cooldown instead of the default 60s - see CircuitBreaker) gets skipped
+        entirely on the next call instead of being re-probed and wasting the request."""
         start = time.monotonic()
 
-        if self.claude_client and not breaker.is_open("claude"):
+        if self.gemini_client and not breaker.is_open("gemini"):
             for attempt in range(retries + 1):
                 try:
-                    response = self.claude_client.messages.create(
-                        model=CLAUDE_MODEL,
-                        max_tokens=max_tokens,
-                        system=system_prompt if system_prompt else None,
-                        messages=[{"role": "user", "content": prompt}],
+                    # GEMINI_MODEL is a "thinking" model - it spends ~150 tokens of its
+                    # max_output_tokens budget on internal reasoning before the visible
+                    # answer (confirmed empirically: thoughts_token_count ~136-140 on a
+                    # trivial prompt), so a tight budget silently returns empty text with
+                    # finish_reason=MAX_TOKENS rather than an error. Pad the budget so the
+                    # thinking overhead never starves the actual answer.
+                    response = self.gemini_client.models.generate_content(
+                        model=GEMINI_MODEL,
+                        contents=prompt,
+                        config=genai_types.GenerateContentConfig(
+                            system_instruction=system_prompt if system_prompt else None,
+                            max_output_tokens=max_tokens + GEMINI_THINKING_TOKEN_BUFFER,
+                            thinking_config=genai_types.ThinkingConfig(thinking_level="low"),
+                        ),
                     )
-                    text = response.content[0].text.strip()
+                    text = (response.text or "").strip()
                     if json_mode:
                         text = text.replace("```json", "").replace("```", "").strip()
-                    self._log_llm_call("claude", True, start)
-                    breaker.record_success("claude")
+                    if not text:
+                        raise ValueError("Gemini returned empty text (likely hit max_output_tokens or was filtered)")
+                    self._log_llm_call("gemini", True, start)
+                    breaker.record_success("gemini")
                     return text
                 except Exception as e:
                     transient = self._is_transient(e)
                     if transient and attempt < retries:
                         time.sleep(2 ** attempt)
                         continue
-                    breaker.record_failure("claude", quota_exceeded=is_quota_error(str(e)), retry_after_seconds=extract_retry_seconds(str(e)))
-                    self._log_llm_call("claude", False, start, error=str(e))
+                    breaker.record_failure("gemini", quota_exceeded=is_quota_error(str(e)), retry_after_seconds=extract_retry_seconds(str(e)))
+                    self._log_llm_call("gemini", False, start, error=str(e))
                     break
-
-        if self.groq_client and not breaker.is_open("groq"):
-            try:
-                messages = [{"role": "user", "content": prompt}]
-                if system_prompt:
-                    messages.insert(0, {"role": "system", "content": system_prompt})
-                response = self.groq_client.chat.completions.create(
-                    model=GROQ_MODEL, max_tokens=max_tokens, messages=messages, timeout=30
-                )
-                text = response.choices[0].message.content.strip()
-                if json_mode:
-                    text = text.replace("```json", "").replace("```", "").strip()
-                self._log_llm_call("groq", True, start)
-                breaker.record_success("groq")
-                return text
-            except Exception as e:
-                breaker.record_failure("groq", quota_exceeded=is_quota_error(str(e)), retry_after_seconds=extract_retry_seconds(str(e)))
-                self._log_llm_call("groq", False, start, error=str(e))
-
-        if self.gemini_client and not breaker.is_open("gemini"):
-            try:
-                # GEMINI_MODEL is a "thinking" model - it spends ~150 tokens of its
-                # max_output_tokens budget on internal reasoning before the visible
-                # answer (confirmed empirically: thoughts_token_count ~136-140 on a
-                # trivial prompt), so a tight budget silently returns empty text with
-                # finish_reason=MAX_TOKENS rather than an error. Pad the budget so the
-                # thinking overhead never starves the actual answer.
-                response = self.gemini_client.models.generate_content(
-                    model=GEMINI_MODEL,
-                    contents=prompt,
-                    config=genai_types.GenerateContentConfig(
-                        system_instruction=system_prompt if system_prompt else None,
-                        max_output_tokens=max_tokens + GEMINI_THINKING_TOKEN_BUFFER,
-                    ),
-                )
-                text = (response.text or "").strip()
-                if json_mode:
-                    text = text.replace("```json", "").replace("```", "").strip()
-                if not text:
-                    raise ValueError("Gemini returned empty text (likely hit max_output_tokens or was filtered)")
-                self._log_llm_call("gemini", True, start)
-                breaker.record_success("gemini")
-                return text
-            except Exception as e:
-                breaker.record_failure("gemini", quota_exceeded=is_quota_error(str(e)), retry_after_seconds=extract_retry_seconds(str(e)))
-                self._log_llm_call("gemini", False, start, error=str(e))
 
         self.logger.log_action(
             "call_llm", input_data={"prompt_preview": prompt[:200]}, success=False,
-            error_message="All LLM providers failed or circuit open", level="ERROR",
+            error_message="Gemini failed or circuit open", level="ERROR",
         )
-        if all(breaker.is_open(p) for p in ALL_PROVIDERS):
+        if breaker.is_open("gemini"):
             classify_and_escalate(
-                self.name, RuntimeError("Claude, Groq, and Gemini circuits all open"), CRITICAL,
-                context="All LLM providers are failing repeatedly — consider degraded mode",
+                self.name, RuntimeError("Gemini circuit open"), CRITICAL,
+                context="Gemini (the only configured LLM provider) is failing repeatedly — consider degraded mode",
             )
         return None
 

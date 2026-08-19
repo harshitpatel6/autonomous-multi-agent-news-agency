@@ -3,6 +3,7 @@ Structured logging for agent actions (Task 3.1)
 All agent activity is persisted to the agent_logs table for observability.
 """
 import json
+import os
 import sqlite3
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
@@ -47,8 +48,8 @@ class AgentLogger:
             conn = _get_conn()
             conn.execute(
                 """INSERT INTO agent_logs
-                   (timestamp, agent_name, action, input_data, output_data, success, error_message, execution_time_ms)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (timestamp, agent_name, action, input_data, output_data, success, error_message, execution_time_ms, pid)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     datetime.now(timezone.utc).isoformat(),
                     self.agent_name,
@@ -58,6 +59,7 @@ class AgentLogger:
                     1 if success else 0,
                     error_message,
                     execution_time_ms,
+                    os.getpid(),
                 ),
             )
             conn.commit()

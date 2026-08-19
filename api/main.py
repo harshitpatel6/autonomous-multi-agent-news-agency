@@ -165,6 +165,64 @@ def list_pipeline_runs(limit: int = 20):
     return result
 
 
+@app.get("/api/clusters/failed")
+def list_failed_clusters(limit: int = 50):
+    """Clusters stuck without a summary - backs the "needs attention" table on the
+    admin Processing History page. Includes clusters still within their automatic-
+    retry budget as well as ones that have exhausted it (`auto_retry_pending` tells
+    the UI which is which - see MAX_AUTO_SUMMARIZE_ATTEMPTS in config.py). Excludes
+    already-sent clusters (sent_at IS NOT NULL), same as summarize_clusters() /
+    reprocess_cluster() - there's nothing to reprocess there."""
+    from config import MAX_AUTO_SUMMARIZE_ATTEMPTS
+
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT id, created_at, summarize_attempts, last_summarize_attempt_at, summarize_error
+           FROM clusters
+           WHERE summary IS NULL AND sent_at IS NULL AND COALESCE(summarize_attempts, 0) > 0
+           ORDER BY last_summarize_attempt_at DESC
+           LIMIT ?""",
+        (limit,),
+    ).fetchall()
+
+    result = []
+    for r in rows:
+        d = dict(r)
+        articles = conn.execute(
+            "SELECT title, source FROM articles WHERE cluster_id = ? LIMIT 3",
+            (d["id"],),
+        ).fetchall()
+        article_count = conn.execute(
+            "SELECT COUNT(*) as c FROM articles WHERE cluster_id = ?", (d["id"],)
+        ).fetchone()["c"]
+        d["sample_titles"] = [dict(a) for a in articles]
+        d["article_count"] = article_count
+        d["auto_retry_pending"] = (d["summarize_attempts"] or 0) < MAX_AUTO_SUMMARIZE_ATTEMPTS
+        result.append(d)
+    conn.close()
+    return result
+
+
+@app.post("/api/clusters/{cluster_id}/reprocess")
+def reprocess_cluster_endpoint(cluster_id: int, force: bool = False):
+    """Manual retry for one stuck cluster (the "Re-process" button). See
+    summarize.py::reprocess_cluster for the guards that keep this from wasting an
+    LLM call - already summarized/sent, no articles left, or clicked again too soon
+    after the last attempt (SUMMARIZE_RETRY_COOLDOWN_SECONDS) all short-circuit
+    before any provider is touched."""
+    from summarize import reprocess_cluster
+    return reprocess_cluster(cluster_id, force=force)
+
+
+@app.get("/api/providers/status")
+def providers_status():
+    """Circuit-breaker state per LLM provider, so the admin UI can warn before a
+    Re-process click that's likely to fail immediately (every provider cooling down)
+    instead of leaving the user to guess why it didn't work."""
+    from utils.error_handling import breaker
+    return breaker.status()
+
+
 @app.get("/api/articles/{article_id}")
 def get_article(article_id: int):
     """Full article detail: headline, full body, and the original sources it was built from."""
@@ -172,7 +230,7 @@ def get_article(article_id: int):
     cluster = conn.execute(
         """SELECT id, headline, category, summary, full_content, key_takeaways, importance_score,
                   published_at, seo_title, seo_description, seo_keywords,
-                  image_url, image_credit, image_credit_url
+                  image_url, image_credit, image_credit_url, content_type, similarity_score
            FROM clusters WHERE id = ? AND published_at IS NOT NULL""",
         (article_id,),
     ).fetchone()
@@ -202,6 +260,72 @@ def get_article(article_id: int):
         result["key_takeaways"] = []
     result["sources"] = [dict(s) for s in sources]
     result["related"] = [dict(r) for r in related]
+    # Distinct-source count, not row count - the same publisher can show up twice in a
+    # cluster's `articles` (e.g. an RSS entry plus a manually-added duplicate URL); what
+    # the reader-facing "single-source" badge (web/app/(site)/articles/[id]/page.tsx)
+    # actually means is "no independent corroboration," which is about distinct outlets.
+    result["is_single_source"] = len({s["source"] for s in sources}) <= 1
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Insights desk (agents/insight_agent.py)
+# ---------------------------------------------------------------------------
+@app.get("/api/insights/brand")
+def insights_brand():
+    """The Insights desk's own name/tagline/mission - decided once by the LLM and
+    persisted (site_meta table), not hardcoded, so the frontend never bakes in a name
+    a human picked for it. Cheap after the first call (reads a cached DB row)."""
+    from agents.insight_agent import insight_agent
+    return insight_agent.get_or_create_brand()
+
+
+@app.get("/api/insights")
+def list_insights(limit: int = 20, offset: int = 0, format: Optional[str] = None):
+    conn = get_connection()
+    query = """SELECT id, format, title, teaser, tags, published_at
+               FROM features WHERE published_at IS NOT NULL"""
+    params: list = []
+    if format:
+        query += " AND format = ?"
+        params.append(format)
+    query += " ORDER BY published_at DESC LIMIT ? OFFSET ?"
+    params.append(limit)
+    params.append(offset)
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+
+    import json as _json
+    result = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["tags"] = _json.loads(d["tags"]) if d["tags"] else []
+        except (TypeError, ValueError):
+            d["tags"] = []
+        result.append(d)
+    return result
+
+
+@app.get("/api/insights/{feature_id}")
+def get_insight(feature_id: int):
+    conn = get_connection()
+    row = conn.execute(
+        """SELECT id, format, title, teaser, body_html, sources, tags, published_at
+           FROM features WHERE id = ? AND published_at IS NOT NULL""",
+        (feature_id,),
+    ).fetchone()
+    conn.close()
+    if not row:
+        return {"error": "not found"}
+
+    import json as _json
+    result = dict(row)
+    for field in ("sources", "tags"):
+        try:
+            result[field] = _json.loads(result[field]) if result[field] else []
+        except (TypeError, ValueError):
+            result[field] = []
     return result
 
 

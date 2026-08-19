@@ -320,31 +320,77 @@ def build_digest_html():
 
             print(f"✓ QA/Editor backup loop: shipping {len(selected_clusters)} validated stories")
 
-        # Defamation-risk gate: the email goes straight to subscribers' inboxes, so a
-        # hallucinated claim about a named person/company here is at least as much legal
-        # exposure as one on the site (arguably more - it's actively pushed, not just
-        # hosted). Drop anything the grounding check can't clear rather than send it.
-        cleared_clusters = []
+        # Fact-check gate: only a genuine "reject" (missing headline/summary,
+        # unparseable/implausible dates, malformed URLs - a real data-quality problem
+        # no LLM call fixes) holds a cluster back from the email. "review" - in
+        # practice almost always fact_checker_agent's single-uncorroborated-source
+        # heuristic - used to be blocked here too, on the theory that a follow-up
+        # ingest cycle might add a corroborating source. That never happens:
+        # dedup.py::cluster_articles() never merges a later article into an existing
+        # cluster, so a single-source cluster stays single-source forever - and most
+        # AI-news coverage IS single-source (a vendor announcing its own release, with
+        # no third party to "corroborate" it). Verified against the live DB
+        # (2026-08-13): that rule was blocking ~all clusters, every run, forever - see
+        # the same fix already applied in publish.py for the full writeup. The actual
+        # risk it was a rough proxy for (an uncorroborated claim about a THIRD PARTY)
+        # is what check_content_grounding()'s defamation check below verifies
+        # directly, against the real generated text - a far more precise signal than
+        # source count.
+        corroborated_clusters = []
         for cluster in selected_clusters:
-            compliance = fact_checker_agent.check_defamation_risk(
-                cluster.get("headline"), cluster.get("summary"), cluster.get("articles", []),
-            )
-            if compliance.get("verdict") == "PASS":
-                cleared_clusters.append(cluster)
+            fc_response = fact_checker_agent.validate_cluster(cluster, cluster.get("articles", []))
+            if fc_response.get("recommendation") in ("publish", "review"):
+                corroborated_clusters.append(cluster)
             else:
-                print(f"  [blocked] cluster {cluster.get('id')} failed defamation-risk check: "
-                      f"{compliance.get('flagged')}")
-        selected_clusters = cleared_clusters
+                print(f"  [blocked] cluster {cluster.get('id')} rejected, won't be emailed: "
+                      f"{fc_response.get('flags')}")
+        selected_clusters = corroborated_clusters
 
         if not selected_clusters:
-            print("Digest: No valid stories after defamation-risk check.")
+            print("Digest: No valid stories after fact-check.")
             return None, []
 
         # Writer Agent: expand each selected, already-fact-checked story into a full
         # website article (cached in clusters.full_content so it only runs once per story).
+        # Must run BEFORE the grounding gate below - that's the step that can introduce a
+        # fabricated number/fact while elaborating on the sources, so checking the
+        # pre-Writer summary instead (as this used to) would never catch it.
         print(f"\n✍️  Writer Agent: generating full articles for {len(selected_clusters)} stories")
         for cluster in selected_clusters:
             ensure_full_article(cluster)
+
+        # Grounding gate: catches both defamation exposure and fabricated/distorted facts
+        # (invented numbers, a real number applied to the wrong scope, etc.) introduced by
+        # the Writer's expansion - checked against the actual generated article, not the
+        # short editorial brief, since that's the text actually going out to subscribers.
+        cleared_clusters = []
+        for cluster in selected_clusters:
+            conn = get_connection()
+            row = conn.execute(
+                "SELECT full_content, key_takeaways FROM clusters WHERE id = ?", (cluster["id"],)
+            ).fetchone()
+            conn.close()
+            generated_text = (row["full_content"] or "") if row else ""
+            if row and row["key_takeaways"]:
+                import json as _json
+                try:
+                    generated_text += "\n" + "\n".join(_json.loads(row["key_takeaways"]))
+                except (TypeError, ValueError):
+                    pass
+
+            compliance = fact_checker_agent.check_content_grounding(
+                cluster.get("headline"), generated_text, cluster.get("articles", []),
+            )
+            if compliance.get("verdict") == "PASS":
+                cleared_clusters.append(cluster)
+            else:
+                print(f"  [blocked] cluster {cluster.get('id')} failed grounding check: "
+                      f"{compliance.get('flagged')}")
+        selected_clusters = cleared_clusters
+
+        if not selected_clusters:
+            print("Digest: No valid stories after grounding check.")
+            return None, []
 
         # Sort by importance so the strongest stories lead each section (and the hero).
         selected_clusters = sorted(

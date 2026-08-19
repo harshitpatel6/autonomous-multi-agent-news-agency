@@ -28,34 +28,69 @@ FEED_FETCH_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; AIDailyBot/1.0; +h
 FEED_FETCH_WORKERS = 12
 
 
-def is_article_recent(published_str):
+def parse_published_date(published_str):
     """
-    Check if an article's published date is within LOOKBACK_HOURS AND after ABSOLUTE_CUTOFF_DATE.
-    If no published date, treat as recent (assume it's new from the feed).
+    Parse a feed entry's published/updated string into an aware UTC datetime.
+
+    Feeds in this project's FEEDS list come in two date flavors: RFC-2822
+    (classic RSS <pubDate>, e.g. "Fri, 14 Aug 2026 18:56:45 +0000") and
+    ISO-8601 (Atom <updated>/<published>, e.g. "2026-08-14T19:18:00Z" or with
+    fractional seconds) - GitHub releases.atom, GitLab's atom.xml, Blogger
+    feeds, and Vercel's /atom feed are all ISO-8601.
+
+    Returns None if the string is empty or matches neither format. Callers
+    must NOT fail open on None (treat-as-recent) for every caller - that was
+    the actual bug here: is_article_recent() used to only try RFC-2822 via
+    parsedate_to_datetime, which raises on ISO-8601, and the bare except
+    treated every single ISO-dated Atom entry as "recent" regardless of true
+    age. Vercel's /atom feed returns its full changelog history, so this
+    silently re-admitted ~1450 multi-year-old "new" articles on every single
+    15-min run (verified against run.log: same ~1449 count, every run) -
+    ingest and cleanup_old_articles() then raced each other pointlessly:
+    cleanup's DELETE happens to compare correctly for ISO-vs-ISO strings, so
+    it deleted almost the exact same rows right back out next step, making
+    every dashboard cycle report "1961 ingested" for near-zero real signal.
     """
     if not published_str:
-        return True  # No date = assume it's recent
-    
+        return None
+
+    from email.utils import parsedate_to_datetime
     try:
-        # Parse the published date (handles multiple formats via feedparser)
-        from email.utils import parsedate_to_datetime
-        pub_date = parsedate_to_datetime(published_str)
-        
-        # Make timezone-aware for comparison
-        if pub_date.tzinfo is None:
-            pub_date = pub_date.replace(tzinfo=timezone.utc)
-        
-        # Check against ABSOLUTE_CUTOFF_DATE first
-        absolute_cutoff = datetime.fromisoformat(ABSOLUTE_CUTOFF_DATE)
-        if pub_date < absolute_cutoff:
-            return False
-        
-        # Then check against LOOKBACK_HOURS
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=LOOKBACK_HOURS)
-        return pub_date >= cutoff
-    except Exception:
-        # If parsing fails, treat as recent to be safe
-        return True
+        dt = parsedate_to_datetime(published_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (TypeError, ValueError):
+        pass
+
+    try:
+        dt = datetime.fromisoformat(published_str.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except ValueError:
+        return None
+
+
+def is_article_recent(pub_date):
+    """
+    Check if a parsed published datetime is within LOOKBACK_HOURS AND after
+    ABSOLUTE_CUTOFF_DATE. pub_date is the output of parse_published_date():
+    an aware datetime, or None if the entry had no date or one in neither
+    format this project's feeds actually use - genuinely dateless entries are
+    still treated as recent (assume new from the feed), same as before; the
+    fix is that this path is now reserved for real "no date" cases instead of
+    silently swallowing every unparsed ISO-8601 date too.
+    """
+    if pub_date is None:
+        return True  # No usable date = assume it's recent
+
+    absolute_cutoff = datetime.fromisoformat(ABSOLUTE_CUTOFF_DATE)
+    if pub_date < absolute_cutoff:
+        return False
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=LOOKBACK_HOURS)
+    return pub_date >= cutoff
 
 
 def extract_rss_image(entry):
@@ -139,11 +174,22 @@ def fetch_feeds():
                     if not title or not url:
                         continue
 
-                    # Filter out old articles
-                    if not is_article_recent(published):
+                    # Filter out old articles. pub_dt is the parsed datetime (or None
+                    # for a genuinely dateless entry) - reused below so published_at
+                    # is always stored in one canonical ISO-8601 format regardless of
+                    # what format the source feed used. Storing the raw feed string
+                    # here (the previous behavior) is what let RFC-2822 and ISO-8601
+                    # dates mix in the same TEXT column, which every later >=/< date
+                    # comparison in dedup.py/summarize.py does as a plain string
+                    # comparison - broken in both directions for mixed formats (see
+                    # parse_published_date's docstring).
+                    pub_dt = parse_published_date(published)
+                    if not is_article_recent(pub_dt):
                         source_old += 1
                         old_count += 1
                         continue
+
+                    published_at = pub_dt.isoformat() if pub_dt else datetime.now(timezone.utc).isoformat()
 
                     try:
                         conn.execute(
@@ -155,7 +201,7 @@ def fetch_feeds():
                                 title,
                                 url,
                                 summary,
-                                published,
+                                published_at,
                                 datetime.now(timezone.utc).isoformat(),
                                 image_url or None,
                             ),

@@ -77,6 +77,27 @@ export type PipelineRun = {
   error_summary: { reason: string; count: number }[];
 };
 
+export type FailedCluster = {
+  id: number;
+  created_at: string;
+  summarize_attempts: number;
+  last_summarize_attempt_at: string | null;
+  summarize_error: string | null;
+  sample_titles: { title: string; source: string }[];
+  article_count: number;
+  // false once the cluster has burned through MAX_AUTO_SUMMARIZE_ATTEMPTS (config.py)
+  // and publish.py's cron will no longer retry it on its own - Re-process is the only
+  // way it moves forward from here.
+  auto_retry_pending: boolean;
+};
+
+export type ReprocessResult =
+  | { ok: true; already_summarized: true }
+  | { ok: true; cluster: { headline: string; category: string; summary: string; importance_score: number } }
+  | { ok: false; error: string; retry_after_seconds?: number; attempts?: number };
+
+export type ProviderStatus = Record<string, { failures: number; open: boolean }>;
+
 export type ArticleSource = {
   source: string;
   title: string;
@@ -100,6 +121,44 @@ export type ArticleDetail = ArticleSummary & {
   // Link back to the original article the image/image_credit came from - used for
   // the "Photo: X" credit link on the article detail page's hero cover.
   image_credit_url: string | null;
+  // Classified by agents/reporter_agent.py; drives which Writer prompt mode wrote this
+  // piece (agents/writer_agent.py) - "tutorial_or_reference" pieces deliberately don't
+  // reconstruct their source's step-by-step detail. Null on articles published before
+  // this field existed.
+  content_type: "news" | "tutorial_or_reference" | null;
+  // Best (lowest) originality-check score achieved by the Writer Agent before this
+  // article was allowed to publish (utils/similarity.py) - purely informational, since
+  // a story is only ever published at all if it cleared the strict gate.
+  similarity_score: number | null;
+  // No independent corroborating source - agents/fact_checker_agent.py treats these
+  // differently internally; surfaced here so the reader can see that distinction too.
+  is_single_source: boolean;
+};
+
+// --- Insights desk (agents/insight_agent.py) ---
+export type InsightFormat = "roundup" | "explainer" | "weekly_synthesis" | "opinion" | "fun";
+
+export type InsightsBrand = {
+  name: string;
+  tagline: string;
+  mission: string;
+  _pending?: boolean; // LLM was unavailable when this was fetched — a temporary placeholder, not the final name
+};
+
+export type FeatureSummary = {
+  id: number;
+  format: InsightFormat;
+  title: string;
+  teaser: string;
+  tags: string[];
+  published_at: string | null;
+};
+
+export type FeatureSource = { name: string; url: string };
+
+export type FeatureDetail = FeatureSummary & {
+  body_html: string;
+  sources: FeatureSource[];
 };
 
 export type SeoRun = {
@@ -182,9 +241,23 @@ export const api = {
   },
   getArticle: (id: number | string) => apiFetch<ArticleDetail | { error: string }>(`/api/articles/${id}`),
   getPipelineRuns: (limit = 20) => apiFetch<PipelineRun[]>(`/api/pipeline/runs?limit=${limit}`),
+  getFailedClusters: (limit = 50) => apiFetch<FailedCluster[]>(`/api/clusters/failed?limit=${limit}`),
+  reprocessCluster: (id: number) =>
+    apiFetch<ReprocessResult>(`/api/clusters/${id}/reprocess`, { method: "POST" }),
+  getProviderStatus: () => apiFetch<ProviderStatus>("/api/providers/status"),
   getSeoOverview: () => apiFetch<SeoOverview>("/api/seo/overview"),
   getSeoPages: (onlyIssues = false) => apiFetch<SeoPage[]>(`/api/seo/pages?only_issues=${onlyIssues}`),
   runSeoAudit: (limit = 15) => apiFetch<{ checked: number; avg_score: number | null }>(`/api/seo/audit?limit=${limit}`, { method: "POST" }),
+  getInsightsBrand: () => apiFetch<InsightsBrand>("/api/insights/brand"),
+  getInsights: (format?: InsightFormat, limit?: number, offset?: number) => {
+    const params = new URLSearchParams();
+    if (format) params.set("format", format);
+    if (limit) params.set("limit", String(limit));
+    if (offset) params.set("offset", String(offset));
+    const qs = params.toString();
+    return apiFetch<FeatureSummary[]>(`/api/insights${qs ? `?${qs}` : ""}`);
+  },
+  getInsight: (id: number | string) => apiFetch<FeatureDetail | { error: string }>(`/api/insights/${id}`),
 };
 
 export { API_URL };
