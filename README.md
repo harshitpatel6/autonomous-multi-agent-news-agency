@@ -6,40 +6,76 @@ a daily digest — with zero human intervention and zero duplicate sends across 
 
 ## Architecture
 
-```
-RSS feeds ──▶ ingest.py ──▶ dedup.py (cluster) ──▶ summarize.py (Reporter Agents)
-                                                            │
-                                                            ▼
-                                              agents/agent_coordinator.py
-                                        (Fact-Checker ──▶ Editor, via MessageRouter)
-                                                            │
-                                                            ▼
-                                     digest.py: QA Agent validates ◀──▶ Editor backfills
-                                          (PASS / PARTIAL+backup / FAIL)
-                                                            │
-                                                            ▼
-                                       send_email.py ──▶ StateManager marks sent
+### Pipeline & platform flow
+
+```mermaid
+flowchart TD
+    RSS[("📡 ~35 RSS Feeds")] --> ING["ingest.py<br/>fetch & normalize"]
+
+    subgraph PIPELINE["Ingestion & Curation — main.py"]
+        direction TB
+        ING --> DEDUP["dedup.py<br/>cluster duplicate coverage"]
+        DEDUP --> SUMM["summarize.py<br/>Reporter Agents draft"]
+    end
+
+    subgraph NEWSROOM["Agent Newsroom — agents/agent_coordinator.py"]
+        direction TB
+        FC["Fact-Checker Agent<br/>confidence score 0–1"]
+        ED["Editor Agent<br/>selects top stories"]
+        QA["QA Agent<br/>PASS / PARTIAL / FAIL"]
+        FC -->|MessageRouter| ED --> QA
+        QA -- "FAIL / PARTIAL → backfill" --> ED
+    end
+
+    SUMM --> FC
+    QA -->|PASS| EMAIL["send_email.py<br/>daily digest"]
+    EMAIL --> STATE["StateManager<br/>marks clusters sent — no repeats"]
+
+    ALEX["🧑‍💼 ALEX — CEO Agent<br/>status · Q&A · commands · escalation"]
+    NEWSROOM -. "escalations" .-> ALEX
+    ALEX -. "message_router.py" .-> NEWSROOM
+
+    DB[("digest.db — SQLite")]
+    PIPELINE -. writes .-> DB
+    NEWSROOM -. writes .-> DB
+    STATE -. writes .-> DB
+
+    subgraph PLATFORM["Web Platform"]
+        direction TB
+        API["FastAPI — api/main.py<br/>metrics · digests · articles · CEO chat"]
+        SITE["Next.js Public Site<br/>articles · categories · insights"]
+        ADMIN["Next.js Admin Console<br/>dashboard · agents · CEO · SEO · history"]
+        API --> SITE
+        API --> ADMIN
+    end
+
+    DB --> API
+    ALEX -. "/api/ceo/*" .-> API
 ```
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         ALEX — CEO Agent                        │
-│   status reports · board Q&A · strategic commands · escalation  │
-│                    (agents/ceo_agent.py, ceo_cli.py)             │
-└───────────────────────────────┬─────────────────────────────────┘
-                                 │ agents/message_router.py
-        ┌───────────┬───────────┼───────────┬────────────┐
-        ▼           ▼           ▼           ▼            ▼
-   Reporter*     Fact-      Editor        QA          (escalations
-   (beats)      Checker     Agent        Agent          from any
-                                                          agent)
-```
+### Agent communication (hub-and-spoke)
 
-*Reporter Agents specialize by beat: Company News, Research, Tools & Engineering, General.
+```mermaid
+flowchart TD
+    ALEX["🧑‍💼 ALEX — CEO Agent<br/>agents/ceo_agent.py · ceo_cli.py"]
+    ROUTER{{"message_router.py"}}
+    ALEX <--> ROUTER
+    ROUTER <--> REP["Reporter Agents ×4<br/>(Company · Research · Tools · General)"]
+    ROUTER <--> FC["Fact-Checker Agent"]
+    ROUTER <--> ED["Editor Agent"]
+    ROUTER <--> QAA["QA Agent"]
+    ROUTER <--> SCOUT["Scout Agent (optional)"]
+    REP -. escalation .-> ROUTER
+    FC -. escalation .-> ROUTER
+    ED -. escalation .-> ROUTER
+    QAA -. escalation .-> ROUTER
+```
 
 Every agent inherits from `agents/base_agent.py`, which provides Claude → Groq LLM
 fallback, retries with backoff, a circuit breaker, and structured logging — so
-specialized agents only implement their editorial logic.
+specialized agents only implement their editorial logic. If both LLM providers'
+circuit breakers trip open, `agents/degraded_mode.py` takes over with rule-based
+clustering/scoring and a CRITICAL escalation fires to ALEX.
 
 ## Agent Roles
 
